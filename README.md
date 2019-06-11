@@ -369,22 +369,113 @@ maven用户中。继承自spring-boot-starter-parent项目可以获得以下好�
 
 下面是一些常用的starter
 
-	name | 价格 |  数量  
-	-|-|-
-	香蕉  | $1 | 5 |
-	苹果  | $1 | 6 |
-	草莓  | $1 | 7 |
-
-
-
-	名称 | 描述 
-	-|-
+	|名称 | 描述| 
+	|-|-|
 	spring-boot-starter | 核心starter,包括自动配置支持，日志和YAML
+	spring-boot-starter-activemq | apache ActiveMQ 消息队列的依赖
+	spring-boot-starter-amqp | RabbitMQ 的依赖
+	spring-boot-starter-aop | spring aop和aspectJ的依赖
+	spring-boot-starter-artemis | apache 消息队列Artemis的依赖
+	spring-boot-starter-batch | Spring batch的依赖
+	spring-boot-starter-cache | spring 缓存的依赖
+	spring-boot-starter-cloud-collection | spring cloud 连接器的依赖。能够简化连接到云服务器的步骤，就像Cloud Foundry和Heroku
+	spring-boot-starter-data-cassandra | Cassandra分发式数据库和Spring data Cassandra的依赖
+	spring-boot-starter-data-cassandra-reactive | 同上
+	spring-boot-starter-data-couchbase | 文档形数据库Couchbase的依赖
+	spring-boot-starter--data-couchbase-reactive | 同上
+	spring-boot-starter-data-elasticsearch Elasticsearch搜索服务和analytics引擎的依赖
+	spring-boot-starter-data-jdbc Spring data jdbc的依赖
+	spring-boot-starter-jpa hibernate jpa的依赖
+	spring-boot-starter-ldap Spring data LDAP的依赖
+	spring-boot-starter-data-mongodb 
+	spring-boot-starter-data-mongodb-reactive
+	spring-boot-starter-data-neo4j
+	spring-boot-starter-data-redis
+	spring-boot-starter-data-redis-reactive
+	spring-boot-starter-data-rest 通过REST暴露spring data库的依赖
+	spring-boot-starter--data-solr
+	spring-boot-starter-data-freemarker
+	spring-boot-starter-groovy-templates
+	spring-boot-starter-hateoas
+	spring-boot-starter-integration
+	spring-boot-starter-jdbc
+	spring-boot-starter-jersey
+	spring-boot-starter-jooq
+	spring-boot-starter-json | 读写json的依赖
+	spring-boot-starter-jta-atomikos
+	spring-boot-starter-jta-bitronix
+	spring-boot-starter-mail
+	spring-boot-starter-mustache
+	spring-boot-starter-oauth2-client 使用spring security oauth2连接客户端的依赖
+	spring-boot-starter-oauth2-resource-server
+	spring-boot-starter-quartz 
+	spring-boot-starter-security
+	spring-boot-starter-test spring boot的测试依赖，内涵junit Mockito
+	spring-boot-starter-thymeleaf
+	spring-boot-starter-validation
+	spring-boot-starter-web web项目的依赖，包括RESTFUL，SpringMVC，tomcat
+	spring-boot-starter-web-service WebService的依赖
+	spring-boot-starter-webflux
+	spring-boot-starter-websocket
 
+>除了以上的依赖之外，还有一个特殊的依赖，被用来加到即将部署的项目依赖中
 
+> spring-boot-starter-Actuator 通过他来查看项目中有用的监控数据。
 
- 
-## 自动装配
+最后spring boot也支持了下面的技术，当你需要时你可以用下面的替换掉默认的依赖。
+> spring-boot-starter-jetty,spring-boot-starter-tomcat的备选项。
+> spring-boot-starter-log4j2,spring-boot-starter-logging的备选项
+> spring-boot-starter-logging,默认的日志依赖
+> spring-boot-starter-reactor-jetty
+>spring-boot-starter-undertow
+
+## 组装你的代码
+
+spring boot并没有特定的编码格式。但是下面的实践很有价值
+
+### 使用默认的包路径
+
+当一个class没有声明包路径。那么就是在默认包路径下。我们不鼓励使用默认包路径。因为当spring boot使用@ComponentScan和@EntityScan和@SpringBootApplication注解的时候，会出一些很特别的问题。
+>我们建议你使用成熟的包路径套路:com.example.project,org.group.project
+
+### 合理安置Application.class主应用类
+
+我们建议你把Application.class入口类放到项目的根目录下。@SpringApplication注解通常用在入口类中。然后他会为了找特定属性而定义“查询包路径”。比如：你写一个JPA项目，那么@springapplication注解就是用来查询@Entity的。最后，放到根目录的另一个好处就是组建扫描的时候只会扫描到你的项目上。
+
+>如果你不想用@SpringBootApplication,这个注解的某一些功能可以用@EnableConfiguration和@ComponentScan代替。
+
+下面的例子，展示了一个标准的层级结构:
+
+	com
+	 +- example
+	     +- myapplication
+	         +- Application.java
+	         |
+	         +- customer
+	         |   +- Customer.java
+	         |   +- CustomerController.java
+	         |   +- CustomerService.java
+	         |   +- CustomerRepository.java
+	         |
+	         +- order
+	             +- Order.java
+	             +- OrderController.java
+	             +- OrderService.java
+	             +- OrderRepository.java
+	
+## 配置class
+
+spring boot喜欢java-based配置。我们虽然也可以使用xml配置，但是我们建议你把@Configuration注解用到一个单独的静态资源加载类中。并且这个类包含java入口main方法，正如application.java
+
+### 引入额外的配置class
+
+你并不需要吧所有的配置都放入单个class中。@Import注解可以用来引入额外的配置类。最终，你可以使用@ComponentScan扫描项目中所有的组件，包括Configuration类。
+
+### 引入xml配置
+
+如果你必须使用xml配置，我们建议你仍然以配置了@Configuration注解的class作为起点。然后你可以使用@ImportResource注解来加载XML配置
+
+## 自动配置
 
 Spring boot 自动装配会根据你在包依赖(maven,或者graddle)中添加的jar包。来自动配置你的Spring应用,比如HSQLDB在你的类路径中。那么你就可以不用手动配置数据库连接类了。spring boot自动帮你配置.
 但是，要使用这个功能你需要把@EnableAutoConfiguration或者@SpringBootApplication添加到你的配置类(添加了@Configuration的那个类)中。
