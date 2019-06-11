@@ -644,4 +644,25 @@ $ export MAVEN_OPTS=-Xmx1024m
 
 ### 默认属性
 
-很多spring boot支持的库会使用缓存来提供效率。比如：模板引擎为了避免重复编译同一个文件，会在在编译的时候缓存模板，Spring MVC和http也会有缓存。虽然缓存在生产模式很有用。但是在开发阶段却是相反的。然而，spring-boot-devtools默认就带了禁用缓存的功能。缓存通常会配置在application.properties文件上。比如:thy
+很多spring boot支持的库会使用缓存来提供效率。比如：模板引擎为了避免重复编译同一个文件，会在在编译的时候缓存模板，Spring MVC和http也会有缓存。虽然缓存在生产模式很有用。但是在开发阶段却是相反的。然而，spring-boot-devtools默认就带了禁用缓存的功能。由于你在开发spring MVC的过程中需要更多的日志信息，devtool将会启用DEBUG模式，之后，包括请求过程中，响应过程中的日志都会打印。如果你想打印全部细节信息，包括请求中的敏感信息，你可以打开spring.http.log-request-details属性。
+
+> 如果你想禁用默认属性你可以在application.properties中设置spring.devtools.add-properties=false
+
+>下面还会介绍完整的devtool属性
+
+### 自动重启机制
+
+如果应用使用了spring-boot-devtool就可以在应用的classpath中的文件有修改的时候自动重启。这个特性在使用IDE进行开发的时候非常有用。默认的，classpath中任意文件夹下的实体类都会被监控是否有修改。需要注意的是，静态资源和视图模板(html等),不需要重启。
+
+```
+触发一次重启
+由于devtool监控classpath上的资源。触发一次重启的唯一方式就是更新classpath。在eclipse中，保存一个已修改的文件会引起classpath更新，从而触发一次重启，在IDEA中，建构一次工程也有同样的效果
+```
+
+> 在重启的时候，devtool依赖于应用上下文的关闭钩子。如果你禁用了关闭钩子SpringApplication.setRegisterShutDownHook(false).那么devtool就不能正常工作。
+
+```
+重启VS重新加载
+
+```
+
