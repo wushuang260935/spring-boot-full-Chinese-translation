@@ -384,4 +384,173 @@ maven用户中。继承自spring-boot-starter-parent项目可以获得以下好�
 
 
  
- 
+## 自动装配
+
+Spring boot 自动装配会根据你在包依赖(maven,或者graddle)中添加的jar包。来自动配置你的Spring应用,比如HSQLDB在你的类路径中。那么你就可以不用手动配置数据库连接类了。spring boot自动帮你配置.
+但是，要使用这个功能你需要把@EnableAutoConfiguration或者@SpringBootApplication添加到你的配置类(添加了@Configuration的那个类)中。
+
+> 建议你要么只添加一个@EnableAutoConfiguation，要么只添加一个@SpringBootApplication到你的配置类中。
+
+### 手动替代自动装配
+
+自动装配是无侵入式的，你可以随时使用手动装配替换自动装配，比如，你可以添加自己的数据库类.那么内嵌的数据库自动配置就会不会被启用。如果你想知道自动装配的具体原理，你可以启动应用的时候打开调试模式,就是这个而命令:--debug.这个命令可以让控制台打印出debug级别的日志。
+
+### 禁用某一个自动装配类
+
+如果你发现某一个正在被使用的自动装配是你不想要的。你可以使用@EnableAutoConfiguration注解中的exclue属性来排除他们。下面就是一个例子:
+
+```
+import org.springframework.boot.autoconfigure.*;
+import org.springframework.boot.autoconfigure.jdbc.*;
+import org.springframework.context.annotation.*;
+
+@Configuration
+@EnableAutoConfiguration(exclude={DataSourceAutoConfiguration.class})
+public class MyConfiguration {
+}
+```
+
+如果这个配置不在执行类上。你可以使用注解中的excludeName属性来指定全类名(org.example.AutoConfiguration)。或者干脆在配置文件上配置spring.autoconfigure.exclude属性.
+
+>上面介绍的注解上的排除项和配置文件上的排除项可以同时使用
+
+## spring类和依赖注入
+
+你可以使用任何标准的spring技术来定义你的类或者对他们的依赖进行注入。为了更简化，我们发现使用@ComponentScan和@Autowired配合得更好,如果你按照上面所说的方式来组装你的代码（也就是把启动类放到根目录下)，那么你使用@ComponentScan的时候就不用参数.在这种情况下，所有的组件(@Component,@Service,@Reposity,@Controller等等)都会自动自动装配进来。
+
+下面的例子展示了一个@Service类的构造函数的参数是怎么被注入的:
+
+```
+package com.example.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class DatabaseAccountService implements AccountService {
+
+	private final RiskAssessor riskAssessor;
+
+	@Autowired
+	public DatabaseAccountService(RiskAssessor riskAssessor) {
+		this.riskAssessor = riskAssessor;
+	}
+
+	// ...
+
+}
+```
+
+如果一个bean有一个构造函数，那么你就可以省略@Autowired注解。下面就是一个例子:
+
+```
+@Service
+public class DatabaseAccountService implements AccountService {
+
+	private final RiskAssessor riskAssessor;
+
+	public DatabaseAccountService(RiskAssessor riskAssessor) {
+		this.riskAssessor = riskAssessor;
+	}
+
+	// ...
+
+}
+```
+
+> 请注意如何使用构造器注入，才能让riskAssessor被标记为final.也就是说他不能被修改。
+
+## 使用@SpringBootApplication注解
+
+很多spring boot开发人员喜欢使用自动配置。而@SpringBootApplication就包含了下面的三个注解的功能:
+
+> @EnableAutoConfiguration:这个注解就表示启用了自动装配
+> @ComponentScan: 让应用上的@Component所在的包被扫描到。就像配置文件<component-scan>
+> @Configuration: 这个注解允许向上下文中注册新的bean。或者是引入额外的配置文件。
+
+使用了@SpringBootApplication就等同于同时使用了上面的三个注解。
+
+> @SpringBootApplication还可以设置@EnableAutoConfiguration和@ComponentScan中属性的别名
+
+> 设置别名并不是强制性的，可能有的时候你只需要上面三个注解中的一部分功能。比如:你可能不想使用组件扫描功能,例子如下：
+
+```
+package com.example.myapplication;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.annotation.ComponentScan
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+
+@Configuration
+@EnableAutoConfiguration
+@Import({ MyConfig.class, MyAnotherConfig.class })
+public class Application {
+
+	public static void main(String[] args) {
+			SpringApplication.run(Application.class, args);
+	}
+
+}
+```
+
+> 上面的例子中，加上@ComponentScan就等于@SpringBootApplication。但是使用@Import就只导入了MyConfig.class和MYAnotherConfig.class
+
+## 运行你的应用
+
+把整个应用打包成一个jar包，并且把HTTP Server内嵌到jar包中有一个很大的好处。那就是你可以自由运行你的项目而不受环境限制。而且调试也很简单。你并不需要特殊的IDE或者插件。
+
+### 从IDE中运行
+
+在IDE上运行spring boot跟运行一个main方法是一样的。
+
+> 有时候你会不小心运行了两次spring boot应用。这时候你会收到Port already in use提示，这个是tomcat的端口被占用了。使用spring tool suite的开发人员可以点击relanch按钮。以保证之前的项目被关闭了。
+
+### 运行一个打包应用
+
+使用java -ar命令。
+
+```
+$ java -jar target/myapplication-0.0.1-SNAPSHOT.jar
+```
+
+如果你开启了远程调试支持。那么你也可以通过下面的方式来运行你的应用个：添加一个开发者到你的应用程序中
+
+```
+$ java -Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n \
+       -jar target/myapplication-0.0.1-SNAPSHOT.jar
+```
+
+### 使用maven插件
+
+spring boot maven插件包含了run 命令。这个命令可以迅速编译和运行你的项目。
+
+```
+$ mvn spring-boot:run
+```
+
+有可能你需要配置一下maven的环境：
+
+```
+$ export MAVEN_OPTS=-Xmx1024m
+```
+
+### 热替换
+
+自从spring boot把应用变成了普通应用了之后，虚拟机热替换技术就迫切需要了。但是热替换技术因为不能准确地替换字节码而受到限制。后来我们使用JRebel技术。
+
+而另一个解决方案就是使用spring-boot-devtools，它也支持快速重启技术。能够使你的项目快速重启。
+
+## 开发者工具
+
+为了让开发过程更加顺利，spring boot添加了一些辅助工具。集成在了spring-boot-devtools中。
+
+> 如果你的应用使用java -jar启动或者通过特定的classloader启动。那么你的应用就会被看作是生产级应用。这个时候，spring-boot-devtools会被禁用。但是万一不行的话，你可以使用java -Dspring.devtools.restart.enabled=false系统属性来排除devtools。
+
+> 标记spring-boot-devtools这个依赖为Optional很有用。因为如果你的应用被其他应用引用了。这个标记能够组织其他应用也加在这个依赖。
+
+> 默认情况下，重新打包文档不会包含devtools.如果你想用某一个devtools特性。你需要禁用excludeDevtools属性。
+
+### 默认属性
+
+很多spring boot支持的库会使用缓存来提供效率。比如：模板引擎为了避免重复编译同一个文件，会在在编译的时候缓存模板，Spring MVC和http也会有缓存。虽然缓存在生产模式很有用。但是在开发阶段却是相反的。然而，spring-boot-devtools默认就带了禁用缓存的功能。缓存通常会配置在application.properties文件上。比如:thy
