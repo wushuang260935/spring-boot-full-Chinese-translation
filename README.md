@@ -661,8 +661,11 @@ $ export MAVEN_OPTS=-Xmx1024m
 
 > 在重启的时候，devtool依赖于应用上下文的关闭钩子。如果你禁用了关闭钩子SpringApplication.setRegisterShutDownHook(false).那么devtool就不能正常工作。
 
-```
+
 重启VS重新加载
 
 ```
+	spring boot提供的重启
+ ```
+ 
 
