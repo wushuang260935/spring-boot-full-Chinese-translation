@@ -665,7 +665,106 @@ $ export MAVEN_OPTS=-Xmx1024m
 重启VS重新加载
 
 ```
-	spring boot提供的重启
+spring boot提供的这个重启技术需要借助两个加载器才能工作。不会改变的类(比如引入的jar包中的类)会使用基础加载器。而你正在开发的类会使用重启加载器。当应用重启过后，重启加载器就会被弃用然后再创建一个新的重启加载器。这种方式就意味着重启速度比冷启动快。但是前提条件是基础加载器正在工作。如果你发现你的热启动一点都不快或者遇到加载问题。你可以考虑使用JRebel(ZeroTurnaround)重新加载技术。他们的工作原理是在启动并加载类的时候会重写所有的类，让重写过后的类会更适合重启。
  ```
  
+### 情况改变时日志也会改变
 
+默认的，每次你的应用一重启，就会有一个评估报告被记录。只要你新增或者删除bean或者是设置配置参数等操作，这个报告会显示你的应用中自动配置的改变情况，要禁用这个功能，就要设置下面的属性:
+
+```
+spring.devtools.restart.log-condition-evluation-delta=false
+```
+
+### 排除静态资源
+
+有一些静态资源改变之后也许不需要触发重启。比如MVC的视图模板，默认的，改变/META-INF/maven,/META-INF/resources,/resources,/static,/public,/templates文件夹中的资源文件不会触发重启但是会触发实时重新加载。
+但是如果你想要自定义你的排除项，你就需要使用spring.devtools.restart.exclude属性。比如，如果只想排除/static,/public你可以设置下面的属性:
+
+```
+spring.devtools.restart.exclude=static/**,public/**
+```
+
+> 如果你想要在保持默认排除项的基础上再额外增加排除项，就需要使用spring.devtools.restart.additional-exclude属性，而不是使用上面的属性(上面的那个属性是改变默认的排除项)。
+
+### 监听额外的路径
+
+如果你修改了某些不在classpath上的文件之后，也想触发自动重启的话，可以配置spring.devtools.restart.additional-paths属性来监听额外的路径。这样发生改变的时候也会触发重启，大多数情况下，你可以把这个属性放到application.properties文件中(但是这么做虽然会初始化重启加载器，但是它不会监听文件改变)。如果你需要完全禁用重启功能，你可以设置spring.devtools.restart.enabled=false.请注意，这里不同的是，这是个系统(System)属性。
+因此，你需要放到SpringApplication.run()前面。如下图:
+
+```
+public static void main(String[] args) {
+	System.setProperty("spring.devtools.restart.enabled", "false");
+	SpringApplication.run(MyApp.class, args);
+}
+```
+
+### 使用触发文件
+
+如果你使用的IDE需要不停地编译修改的文件，你可能更需要在具体的时间点触发重启。因此就需要触发文件。当你想触发一次重启检查的时候，这个触发文件必须被修改。换句话说，修改这个文件只会触发重启检查，而触发重启只能等到devtools自己检测到需要重启的时候。触发文件可以手动修改也可以使用IDE插件修改。要使用触发文件的话，就需要设置spring.devtools.restart.trigger-file属性的值。这个值就是你的触发文件所在的路径。
+
+>你可以把spring.devtools.restart.trigger-file设置为全局属性(比如src/main/java/**)。那么你所有的路径都只会触发重启检测。
+
+### 自定义重启加载器
+
+在上面的重启VS重新加载章节中。重启需要两个加载器。这种方式绝大多数的应用都可以正常使用。但是，有时候会引起加载问题： 默认地，你的IDE中任何正在开发的代码都需要重启加载器加载。而任何任何普通jar文件都是普通加载器加载的。但是如果你的想科目有多项目协同(这种情况比较多),并且不是所有的模块都被加载到了IDE中(这种情况比较少)，遇到这种情况，你需要设置META-INF/spring-devtools.properties文件。这个文件中可以设置restart.exclude(只是一个前缀，具体如下图）属性和restart.include(只是一个前缀，具体如下图)属性。include属性设置的东西使用基础加载器加载。exclude属性设置的东西使用基础加载器加载。请注意，这两个参数的值是正则表达式，用来过滤出classpath中的路径。如下图:
+
+```
+restart.exclude.companycommonlibs=/mycorp-common-[\\w-]+\.jar
+restart.include.projectcommon=/mycorp-myproj-[\\w-]+\.jar
+```
+
+> 所有属性的键必须是唯一的，只要属性以restart.exclude或者restart.include为前缀，这个属性就会生效。
+
+> 所有classpath上的/META-INF/spring-devtools.properties都会被加载,你可以把文件打包到你的项目中，或者打包到你项目的某一个仓库中。
+
+### 已知的限制
+
+现目前已知的是，重启功能并不适合由标准的ObjectInputStream反序列化出来的项目，如果你需要反序列化数据，你需要使用spring的ConfigurableObjectInputStream。并结合Thread.currentThread().getContextClassLoader()使用。不幸的是，很多第三方库在反序列化话的时候没有考虑上下文。如果你发现了这个问题，你需要找这个库的原作者修复这个问题。
+
+
+### 实时重新加载
+
+spring-boot-devtools模块包含一个内置的实时重新加载服务器。当资源被修改的时候，他能够用来触发浏览器刷新。livereload.com上的实时重新加载浏览器插件，谷歌浏览器，火狐浏览器和Safari浏览器都支持。如果你运行应用的时候，不需要启动实时重新加载服务器启动。你可以设置spring.devtools.livereload.enabled=false.
+
+> 同一时间只能运行一个实时重新加载服务器。因此在你的应用启动之前，需要保证没有运行其他的重新加载服务器。如果你在IDE中启动多个项目，只有第一个服务器会有效。
+
+## 全局设置
+
+配置全局devtools设置需要添加一个文件：添加一个叫做.spring-boot-devtools.properties文件到你的操作系统根目录下(Linux $HOME,windows C:/uses/xxx),添加到这个文件中的属性会应用到所有的使用了spring-boot-tools的spring boot项目中。比如：使用触发文件来重启，你需要添加下面的属性：
+
+```
+C:/users/xxx/.spring-boot-devtools.properties
+
+spring.devtools.reload.trigger-file=.reloadtrigger
+```
+
+> 在.spring-boot-devtools.properties文件中开启的profile.不会影响profile-specific配置文件的加载。
+
+## 远程应用
+
+spring-boot-devtools不限于本地开发。当你远程运行项目的时候，你也可以使用它的很多应用。远程支持是可选功能，要使用他的话，你需要保证devtools没有被排除，如下所示:
+
+```
+<build>
+	<plugins>
+		<plugin>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-maven-plugin</artifactId>
+			<configuration>
+				<excludeDevtools>false</excludeDevtools>
+			</configuration>
+		</plugin>
+	</plugins>
+</build>
+```
+
+然后你需要设置spring.devtools.remote.secret属性。spring.devtools.remote.secret=xxxxxx
+
+>远程项目中启用spring-boot-devtools是有风险的，不能在生产环境中使用
+
+>远程devtools由这两个模块提供支持：一个是服务端中负责接收连接的endpoint（它也可以接收客户端应用），当spring.devtools.remote.secret设置了启用，服务端会自动启用。（如果是客户端则必须手动发布）
+
+### 运行远程客户端应用
+
+你需要用你的本地IDE运行远程客户端应用。你需要使用org.springframework.boot.devtools.RemoteSpringApplication来启动你的远程应用，但是你的远程应用的classpath必须和你运行RemoteSpringApplication的classpath一样。
