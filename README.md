@@ -767,4 +767,139 @@ spring-boot-devtools不限于本地开发。当你远程运行项目的时候，
 
 ### 运行远程客户端应用
 
-你需要用你的本地IDE运行远程客户端应用。你需要使用org.springframework.boot.devtools.RemoteSpringApplication来启动你的远程应用，但是你的远程应用的classpath必须和你运行RemoteSpringApplication的classpath一样。
+你需要用你的本地IDE运行远程客户端应用。你需要使用org.springframework.boot.devtools.RemoteSpringApplication来启动你的远程应用，但是你的远程应用的classpath必须和你运行RemoteSpringApplication的classpath一样。举个例子,如果你使用的IDE是eclipse或者STS开发一个叫做my-app的项目。但是这个项目在云服务器上,你可以按照下面的步骤，令你的IDE开发云服务器上的项目。
+
+```
+1. 从run菜单中选择run configuration.
+2. 在java application中选中 "launch configuration"这个启动类.
+3. 点击browser按钮查找my-app项目。
+4. 点击search按钮，使用org.springframework.boot.devtools.RemoteSpringApplication作为他们的主方法
+```
+
+你就会看见控制台正在运行了。上面的例子有以下几个特点:
+
+```
+1. 远程客户端使用的是和本地应用相同的classpath。所以他能够直接读取相关参数。
+2. 建议使用https协议，这样交互的数据都是加密的。
+3. 如果你想在远程桌面中使用代理，可以配置spring.devtools.remote.proxy.host和spring.devtools.remote.proxy.port属性。
+```
+
+### 远程更新
+
+远程桌面会像本地重启一样监视你classpath中的任何改变。一旦检测到了改变就会被推送到远程桌面上并出发重启。只有当远程客户单在运行的时候，文件的修改才能被检测到，否则就不会搜索到。
+
+
+## 打包应用以供生产环境使用 
+
+可执行jar包是可以用于生产环境的。由于可执行jar包自包含了他们需要的依赖，他们也非常适合在云服务上部署。如果你需要以下这些生产级别特性：比如系统稳定性，可监控程度，REST和JMX 端点。你需要用到spring-boot-actuator.
+
+### 接下来要了解的
+
+现在你应该了解了怎么使用spring boot了。接下来你可以到“深度spring boot特性”去做研究。或者你可以直接跳过“深度spring boot特性”。转而研究spring boot在生产环境下的知识。
+
+# 第四部分 深度 spring boot特性
+
+这部分会详细研究spring boot的特性。你可以从这部分中学到spring boot的关键特性。如果你感觉学习这部分比较吃力，请回滚第二部分和第三部分的内容。
+
+## SpringApplication
+
+SpringApplication类提供了一个方便启动“spring application应用”的方法。那就是main方法。大多数情况下你只需要使用SpringApplication.run方法来启动你的spring boot项目。默认情况下，控制台打印的日志级别是info,日志打印的是与启动相关的细节。比如启动应用的是哪一个用户，端口号，启动完成时间。
+
+>如果你需要比info级别更大的日志。请查看后面的章节  日志级别
+
+### 启动失败
+
+如果你的spring boot启动失败了。你就会看到控制台中的failureAnalyzer(失败分析器) 在分析你的错误原因。然后会定位到你错误的关键点上。如下所示：
+
+```
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Embedded servlet container failed to start. Port 8080 was already in use.
+
+Action:
+
+Identify and stop the process that's listening on port 8080 or configure this application to listen on another port.
+```
+
+失败分析器分析了失败原因后，找到了错误的关键点。就是你的端口重复了。
+
+>spring boot提供了很多的错误编辑器，而且你还可以自定义哦。
+
+如果没有一个failureAnalyzer可以处理当前发生的错误。你也可以通过配置相关参数得到一个当前的分析报告。只需要把org.springframework.boot.autoconfigure.logging.ConditionEvaluationReportLoggingListener.的日志级别调整到debug。就可以了
+
+> 你也可以这样调整: java -jar myproject-0.0.1-SNAPSHOT.jar --debug
+
+### 自定义banner
+
+打印到控制台的banner是可以修改的。你只需要在classpath中加入一个你的banner.txt就可以了。或者通过设置spring.banner.location来指定你的banner.txt的位置.如果你的banner不能置顶utf-8格式，那么你需要设置spring.banner.charset。除了banner.txt之外，你还可以加一个banner.gif/jpg/png.图片文件在banner.txt前面。或者设置spring.banner.image.location。这些文件会被转换成ASCII打印在banner.txt的前面。
+
+在banner.txt中。你可以使用下面的占位符。
+
+> ${application.version}  应用的版本号。这个版本号来自MANIFEST.MF.比如Implementation-Version: 1.0那么它就会打印1.0
+> ${application.formatted-version} 同样也是应用的版本号。也是来自MANIFEST.MF。只是这个是以v开头的那个版本号。比如：(v1.0)
+> ${spring-boot.version} 你使用的spring boot版本号。举例:2.1.7.RELEASE
+> ${spring-boot.formatted-version} 类似的。举例：v2.1.7.RELEASE
+> ${Ansi.NAME} or ${AnsiColor.NAME or ${AnsiBackground.NAME} or ${AnsiStyle.NAME}  这个是ANSI空挡符。可以参考AnsiPropertySource源码
+> ${application.title}  应用的标题。定义在MANIFEST.MF中。比如Implementation-Title: MyApp那么它就会打印MyApp
+
+如果你想使用代码生成banner。你可以使用SpringApplication.setBanner()方法。但是需要实现org.springframework.boot.banner接口。你也可以使用spring.main.banner-mode属性来选择打印在哪：控制台，还是日志文件或者关闭。
+注入的banner 在容器中是单例的。bean的名称是springBanner。spring.yml中注意下面的双引号:
+
+```
+spring:
+	main:
+		banner-mode: "off"
+```
+
+### 自定义SpringApplication
+
+如果默认的SpringApplication不符合你的胃口。你可以自定义你自己的springApplication。比如：你有一个自定义的MySpringConfiguration，那么：
+
+```
+	SpringApplication app = new SpringApplication(MySpringConfiguration.class);
+	app.setBannerMode(Banner.Mode.OFF);
+	app.run(args);
+```
+
+MySpringConfiguration是一个Spring beans配置类。换句话说就是MySpringConfiguration把所有有@Configuration的类都配置到了Spring中。
+
+除此之外，你也可以通过通过配置文件(application.properties/.yml)来配置SpringApplication。具体见后面的“额外配置”。
+
+### 流畅配置API
+
+如果你想以接续的方式配置ApplicationContext。或者说你想使用流畅配置API。你可以使用SpringApplicationBuilder。它可以让你链式地配置多个属性。比如：
+
+```
+	new SpringApplicationBuilder()
+		.sources(Parent.class)
+		.child(Application.class)
+		.bannerMode(Banner.Mode.OFF)
+		.run(args);
+```
+
+当创建SpringApplicationBuilder的时候会有一些限制。比如Web组件不能配置在第一级中。只能配置在子级中。但是Environment都可以配置。
+
+### 应用事件和监听器
+
+除了常规的springframework事件之外。比如：ContextRefreshedEvent就是一个常规事件。SpringApplication还会发送一些额外的应用事件：
+
+> 某些事件会在ApplicationContext创建之前触发。所以你不能在这些事件中注入监听器bean。但是你可以通过SpringApplication.addListeners方法或者SpringApplicationBuilder.listeners()方法来注入这些监听器bean。
+>如果你确实想让这些监听器自动注入而不用考虑ApplicationContext是否创建的话，你就需要添加一个META-INF/spring.factories文件。然后就像这样：org.springframework.context.ApplicationListener=com.example.project.MyListener配置你的监听器。
+
+当你的应用启动的时候，所有的应用事件会按照下面的顺序发送出去：
+
+> 1 除了注入监听器和加载器之外，一个ApplicationStartingEvent事件是在执行开始但是还没有做任何操作之间被发送出去的 
+> 2 ApplicationEnvironmentPreparedEvent事件是在context中的某一个Environment即将被应用但是还没创建之前被发送出去的
+> 3 ApplicationPreparedEvent 事件是在bean定义被加载了之后但是刷新开始之前被发送出去的
+> 4 ApplicationStartedEvent 事件是在Context被刷新之后但是任何线程还没有被调用之前被发送出去的
+> 5 ApplicationReadyEvent 事件是在任何线程被调用之后被发送出去的。这个事件的发生表明应用已经准备好接收请求了。
+> 6 ApplicationFailedEvent 事件是在启动过程中有异常抛出的时候被发送出去的
+
+也许你不需要使用应用事件。但是你需要了解他们的存在。实际上，spring boot使用事件来处理很多的任务。
+
+应用事件是由spring framework的事件发布机制发送的。这个机制的部分功能可以确保：在某一个子context中。某一个被发送到监听器的事件。也会被发送到上级context中。这样做的结果就是：你的应用会使用一个有序的SpringApplication实例。某一个监听器会接受到多个相同的事件。但是这些事件却来自不同的上下文实例。如果你想让你的监听器区分哪些应用来自你本身的上下文，哪些是下级上下文的。就需要保证这个上下文是被注入的。这样就可以和其他的上下文进行比较。你可以通过实现ApplicationContextAware接口注入。或者也可以使用 @Autowired注入。
+
