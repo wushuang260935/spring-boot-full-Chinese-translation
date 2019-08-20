@@ -903,3 +903,337 @@ MySpringConfiguration是一个Spring beans配置类。换句话说就是MySpring
 
 应用事件是由spring framework的事件发布机制发送的。这个机制的部分功能可以确保：在某一个子context中。某一个被发送到监听器的事件。也会被发送到上级context中。这样做的结果就是：你的应用会使用一个有序的SpringApplication实例。某一个监听器会接受到多个相同的事件。但是这些事件却来自不同的上下文实例。如果你想让你的监听器区分哪些应用来自你本身的上下文，哪些是下级上下文的。就需要保证这个上下文是被注入的。这样就可以和其他的上下文进行比较。你可以通过实现ApplicationContextAware接口注入。或者也可以使用 @Autowired注入。
 
+### Web环境
+
+开始的时候，SpringApplication会根据你操作的代码创建一个适合这个应用的上下文(ApplicationContext):其实决定创建哪一个Web应用很简单：
+
+> 如果使用了Spring MVC,那么就会创建AnnotationConfigServletWebServerApplicationContext 
+> 如果没使用Spring MVC 但是使用了WebFlux 就会创建AnnotationConfigReactiveWebServerApplicationContext
+> 其他情况下就会创建AnnotationConfigApplicationContext 
+
+这就意味着，如果你在同一个应用中同时使用Spring MVC和Spring WebFlux.那么当某一个请求来临的时候，默认就是用Spring MVC去处理的。但是如果这时候你想用Spring WebFlux的话，就需要使用setWebApplicationType(WebApplicationType)方法来重载默认值。
+
+如果你想完全指定某一个ApplicationContext，那么你可以直接使用setApplicationContextClass()方法.
+
+### 获取应用级别的参数
+
+如果你需要获取传递给SpringApplication.run()方法的应用级别参数。你需要注入一个org.springframework.boot.ApplicationArguments bean.之后应用级参数接口就会提供String[]数组参数和转换好了的option还有非必填参数。举例如下:
+
+```
+	@Autowired
+	public MyBean(ApplicationArguments args) {
+		boolean debug = args.containsOption("debug");
+		List<String> files = args.getNonOptionArgs();
+		// if run with "--debug logfile.txt" debug=true, files=["logfile.txt"]
+	}
+```
+
+spring boot同样会注入一个县城属性源(CommandLinePropertySource) 到应用上下文中。它允许你使用@Value注解注入单例应用级别的参数
+
+### 使用(应用运行器)ApplicationRunner和线程运行器(CommandLineRunner)
+
+如果你想在Spring 应用创建之后马上运行一段特定的代码。你可以实现ApplicationRunner接口或者实现CommandLineRunner。两个接口的工作方式是一样的。他们都只有一个run()方法。他会在Spring.run()调用完成之后立即调用。
+
+线程运行器（CommandLineRunner）接口中的run方法中的参数就是应用级别的参数字符数组,但是,应用运行器（ApplicationRunner)会先于线程运行器(CommandLineRunner)调用ApplicationArguments中的方法.这就意味着他会先得到应用级别参数。
+
+如果你有多个线程运行器(CommandLineRunner)和应用运行器(ApplicationRunner)并且需要对他们进行排序的话，你可以额外继承org.springframework.core.Ordered 接口。你也可以直接注解方式@org.springframework.core.annotation.Order
+
+### 退出应用
+
+每一个spring应用会注册一个关闭钩子到虚拟机中。这样能够确保当关闭应用的时候应用上下文(ApplicationContext)会被优雅地关闭。所有的标准Spring生命周期回掉都可以被使用。比如：DisposableBean接口或者@PreDestroy注解。
+
+除此之外，实现了org.springframework.boot.ExitCodeGenerator接口的bean也会在SpringApplication.exit()被调用的时候返回一段指定的退出码(举例:-1,-2,-3....)。这些退出特码会最终传递到System.exit()方法中.然后Sysatem.exit()方法会返回退出码作为整个系统的状态码。如下所示:
+
+```
+@SpringBootApplication
+public class ExitCodeApplication {
+
+	@Bean
+	public ExitCodeGenerator exitCodeGenerator() {
+		return () -> 42;
+	}
+
+	public static void main(String[] args) {
+		System.exit(SpringApplication.exit(SpringApplication.run(ExitCodeApplication.class, args)));
+	}
+
+}
+```
+
+同样的道理.退出码生成器(ExitCodeGenerator)接口也许会被异常类实现.当遇到错误时，Spring boot会返回退出码，这些退出码由getExitCode提供。
+
+### 管理员特性
+
+设置spring.application.admin.enabled属性就能启用与管理员相关的特性。开启这个属性之后，MBeanServer会暴露SpringApplicationAdminMXBean到javax.management.MBeanServer接口中。你可以使用这个属性远程管理你的spring boot 应用。实际上这个特性在很多的应用中都很用。
+
+> 如果你想知道你的应用端口号，你就需要找local.server.port属性的值。
+
+请注意: 使用这个特性时请保持谨慎,因为MBean暴露了一个可以关闭应用的方法。
+
+## 外部配置
+
+Spring boot 允许手动配置各种外部参数。这样你就可以根据需要配置出不同的外部环境。你可以使用属性文件。YAML文件，环境参数。或者直接配置spring 提供的抽象环境。或者直接通过@ConfigurationProperties构建相关环境对象。
+
+spring boot 使用一种非常特殊的PropertySource顺序。这种顺序被用来重载那些比较敏感的参数。下面是一般的属性顺序:
+
+1.根目录中依赖Devtools(开发工具jar包）的全局设置参数。(当然前提是devtool被使用)
+2.测试类中@TestPropertySource注解
+3.测试类中其他参数。这些参数是在@SpringBootTest用到的参数。还可以是在test相关注解中用于测试特殊应用功能的注解
+4.线程参数。
+5.SPRING_APPLICATION_JSON中的参数（主要是应用环境中或者系统属性中内嵌的JSON需要用到的参数）
+6.ServletInitConfig的初始化参数
+7.ServletContext的初始化参数
+8.java:comp/env中的JNDI参数
+9.java系统级参数（主要是System.getProperties()中的参数)
+10.操作系统环境参数
+11.有一个RandomValuePropertySource对象。它里面的部分参数。来自包：random.*
+12.你的jar包中需要的特定参数。比如数据库需要的参数
+13.你的jar包内含的特定参数。
+14.你的jar包需要的外部应用参数。比如spring-web。需要的spring-core的相关参数
+15.你的jar包内含的应用级别承诺书。比如：默认的端口8080
+16.你在某个有@Configuration的类中使用@PropertySource的注解
+17.默认参数.主要是SpringApplicatgion.setDefaultProperties(MAP).
+
+下面通过一个列子来了解。假设你创建了一个	组件@Component。这个组件有一个name属性。如下:
+
+```
+import org.springframework.stereotype.*;
+import org.springframework.beans.factory.annotation.*;
+
+@Component
+public class MyBean {
+
+    @Value("${name}")
+    private String name;
+
+    // ...
+
+}
+```
+
+在你的应用路径中(classpath).你可以设置一个application.properties文件。这个文件提供一个默认的参数值给name属性。当我们在某一个新的环境中运行的时候。我们就可以在外部
+application.properties文件中提供重新顶一个一个值来重写more你的name属性的值。如果是一次性启动。你就可以使用命令行开关进行发布(java -jar app.jar --name="Spring")。
+
+the spring_application_json属性也可以使用命令行进行赋值。比如：你可以使用下面的UNIX脚本语句：
+
+>$ SPRING_APPLICATION_JSON='{"acme":{"name":"test"}}' java -jar myapp.jar
+
+在下面的例子中。你可以以acme.name=test结尾。你同样可以使用json格式为name赋值。然后把json传给系统参数中的spring.application.json.如下所示:
+$ java -Dspring.application.json='{"name":"test"}' -jar myapp.jar
+
+当然你也可以用命令行:
+$ java -jar myapp.jar -- spring.application.json = '{"name":"test"}'
+
+最后，你也可以以JNDI参数的方式赋值:
+java:comp/env/spring.application.json
+
+### 配置随机值(RandomValuePropertySource中的随机值)
+
+RandomValuePropertySource对于注入随机值很有用（比如：内部密钥或者测试案例）。这个类可以生成Integers,longs.uuids.或者strings如下:
+my.secret=${random.value}
+my.number=${random.int}
+my.bignumber=${random.long}
+my.uuid=${random.uuid}
+my.unmber.less.than.ten=${random.int(10)}
+my.number.in.range=${random.int[1024,65536]}
+
+random.int*语法被称为(开发式值 value,(,max值) 关闭值).也就是说你传入的OPEN值可以是任意的字符类型.最后得到的CLOSE值是也可以是任意字符。但是value,max是integer值。如果你提供的是max值。那么value就是最小值(minimum)
+
+### 获取命令行参数
+
+默认地，SPringApplication可以转换任何命令行参数（就是那个以--开头的参数。比如server.port=90).转换之后的参数会被添加到Spring Environment中。正如前面提到过的一样。命令行参数总是在其他参数的前面。
+
+如果你不想使用命令行参数赋值的方式。你可以使用SpringApplication.setAddCommandLineProperties(false).禁用他们。
+
+### 应用属性文件
+
+SpringApplication对象从application.properties文件中加载参数。SpringApplication一般会从下面的部分查找application.properties文件。并且把文件中的参数加载到Spring环境中:
+
+1.当前SpringApplication所在路径的/config文件中
+2.当前路径中
+3.classpath中的/config路径
+4.classpath中
+
+以上四个根据优先级排序（更高的层级的参数会覆盖低层级的参数)
+
+> 除了application.properties,你也可以使用application.yml
+
+如果你不喜欢application.properties作为你的文件名称。你可以通过修改spring.config.name环境参数的值来改变文件的名称。你也可以使用spring.config.location环境参数来指向某一个明确的位置。（不同位置之间用,号分隔).下面的列子展示了怎么定义不同的文件名称:
+
+>$ java -jar myproject.jar --spring.config.name=myapplication
+
+下面的例子展示了怎么指定两个位置:
+
+>$ java -jar myproject.jar --spring.config.location=classpath:/default.properties,classpath:/another.properties
+
+spring.config.name和spring.config.location中的值会在很早的时候就被加载。因为需要用里面的参数决定下一步的加载项。因此他们两个必须是环境参数。(操作系统参数，系统级参数。命令行参数，都属于环境参数).
+
+如果spring.config.location包含有路径。那么location应该以/结尾。因为在运行的时候。系统会使用spring.config.location+spring.config.name来定位参数文件。因此需要以/结尾。
+
+配置路径是倒序搜索的。默认上，配置的路径像这几个:classpath:/,classpath:/config,file:./,file:./config/.那么搜索顺序就会这样:
+1. file:./config
+2. file:./
+3. classpath:/config/
+4. classpath:/
+
+当自定义的配置通过spring.config.location找到的时候。他们就会替换默认的路径。比如说:如果spring.config.location=classpath:/custom-config/,file:./custom-config/.那么搜索的顺序如下:
+
+1. file:./custom-config/
+2. classpath:custom-config/
+
+另外，如果自定义配置使用的是spring.config.additional-location来确定位置.那么spring boot就会优先搜索spring.config.additional-location的属性。然后再搜索默认的属性。比如：多了两个:classpath:/custom-config/,file:./custom-config/
+1. file:./custom-config/
+2. classpath:.custom-config/
+3. file:./config/
+4. file:./
+5. classpath:/config/
+6. classpath:/
+
+了解了这些顺序后，我们就可以使用某些配置中的部分默认配置，而再在某些配置中使用新的配置把默认的配置覆盖掉。你可以在application.yml中提供默认的配置，然后当切换其他环境是。你就是用不同的配置。
+
+>如果你更喜欢用环境参数而不是用系统参数。大多数操作系统不允许分隔键名(比如空格 "config name或者config.name")。但是你可以使用下划线:spring_config_name
+
+>如果你在容器中运行你的应用。那么JNDI属性或者是servlet加载参数也可以使用了。而不只是环境参数和系统参数。
+
+### 详细配置参数
+
+除了application.properties之外详细配置参数仍然可以通过这种格式:application-{profile}.properties文件来定义。spring 环境中有一连串默认配置。当没有其他活跃的参数被设置的时候，就是用这些默认的配置。也就是说，如果没有其他的参数被激活，那么就会使用默认的application-default.properties.不管你的详细配置文件在你的jar包内部还是jar包外部，你定义的详细配置参数总是会覆盖非详细配置参数。
+
+如果有多个地方配置了同一个参数。那么只是用最后一个参数的配置。比如：spring.profiles.active指定的配置会在SpringApplication中配置的参数加载之后再加载。这样前者的优先级就比后者高。如果你使用spring.config.location指定了某一个具体的配置文件。那么这一个具体的配置文件中的详细配置变量是不会被应用的。
+
+### 使用YAML替代properties
+
+YAML是一连串的json格式的spring参数设置文件。SpringApplication文件自动支持YAML格式作为额外的配置文件。YAML不需要额外的jar包支持。
+
+>如果你使用starter。SnakeYAML自动由spring-boot-starter配置。
+
+#### 加载YAML
+
+spring framework提供两个class来很方便地加载YAML文件。YamlPropertiesFactoryBean对象会把YAML加载成参数。YamlMapFactoryBean 对象会把YamlMapFactoryBean 加载成Map。
+
+例如: 考虑到下面的YAML文档:
+```
+environments:
+	dev:
+		url: https://dev.example.com
+		name: Developer Setup
+	prod:
+		url: https://another.example.com
+		name: My Cool App
+```
+
+下面的例子是把上面的格式转换成下面的老格式:
+
+```
+environments.dev.url=https://dev.example.com
+environments.dev.name=Developer Setup
+environments.prod.url=https://another.example.com
+environments.prod.name=My Cool App
+```
+
+YAML列表会被分隔成一个个带有数组下标的属性:例如:
+
+```
+my:
+servers:
+	- dev.example.com
+	- another.example.com
+```
+
+转换之后就成了止痒:
+
+```
+my.servers[0]=dev.example.com
+my.servers[1]=another.example.com
+```
+
+在使用spring boot的 绑定器(Binder)的时候，我们为了实现上面的转换效果(其实这个也是@ConfigurationProperties的工作原理)。我们需要有一个java.util.List类型的属性。把这个属性作为目标bean.以便以后加载到spring容器中.如下:
+
+```
+@ConfigurationProperties(prefix="my")
+public class Config{
+	private List<String> servers = new ArrayList<String>();
+	
+	public List<String> getServers(){
+		return this.servers;
+	}
+}
+```
+
+联合上面的两个例子和下面的一个例子。我们看到my属于class级别。prefix=my.然后就是属性servers。正巧这个属性是列表。如果后面还有属性。那么就是另一个class对象。这样依次下去。
+
+#### 在spring环境中把yaml显示为属性
+
+YamlPropertySourceLoader 类就是用来把yaml显示为属性的。它会把yaml转换成PropertySource对象。这样的做法就允许你在代码中使用@Value注解+占位符语法获取yaml中设置的参数值
+
+#### 多个yaml配置文档
+
+你可以在同一个目录中指定多个yaml文件配置。只需要使用spring.profiles来指定哪一个文件会被使用就可以了。如下所示:
+
+```
+server:
+ address: 192.168.1.100
+ 
+ 
+ 
+spring:
+ profiles: development
+server:
+ address: 127.0.0.1
+ 
+ 
+ 
+spring:
+ profiles: production & eu-central
+server:
+ address: 192.168.1.120
+```
+
+上面的例子中存在三个文件。如果选择的是development配置。那么第二个文件被使用。服务器地址就是127.0.0.1。如果第三个production and eu-central被使用。那么服务器地址就是192.168.1.120.如果既不选择development也不选择product and eu-central。那么就只能使用第一个。默认的192.168.1.100
+
+> 因此我们可以在spring.profiles包含一个简单的配置名称或者一个的配置表达式。这个表达式可以表述复杂的逻辑，比如：production & (eu-central | eu-west).
+
+如果应用启动的时候没有配置好的活跃参数。那么就使用默认的配置。下面的例子中，我们为spring.secruity.user.password设置了一个密码。这个密码只在默认配置中有效:
+
+```
+server:
+  port: 8000
+---
+spring:
+  profiles: default
+  security:
+    user:
+      password: weak
+```
+
+然而，下面的列子中。密码永远会被设置好，因为它是默认配置
+
+```
+server:
+  port: 8000
+spring:
+  security:
+    user:
+      password: weak
+```
+
+通过spring.profiles指定的spring 配置可以通过!符合忽略。如果有一个未加!的配置和一个加了!的配置同时存在于同一个文件中。那么至少一个未加!的配置会被应用。而加了!也许会匹配成功
+
+#### YAML缺点
+
+yaml中的配置不能够用@PropertySource注解加载。在这种情况下，如果需要在有PropertySource类中加载配置的值的话，不能使用yaml文件。而需要使用属性文件。
+
+在详细配置	YAML文件中使用多个YAML文档语法会导致不可预期的而错误。举例：假设application-dev.yml中有如下配置，然后启用的配置文件是dev:
+
+```
+server:
+  port: 8000
+---
+spring:
+  profiles: !test
+  security:
+    user:
+      password: weak
+```
+
+如上，配置会被忽略并且配置表达式并不会如预期一样表现出来。
