@@ -1236,4 +1236,71 @@ spring:
       password: weak
 ```
 
-如上，配置会被忽略并且配置表达式并不会如预期一样表现出来。
+如上，配置会被忽略并且配置表达式并不会如预期一样表现出来。我们建议开发人员不要同时使用简要配置YAML文件和多个YAML文档同时使用。而是只是用他们其中一个。
+
+### 类型安全的配置参数
+
+使用@Value("${property}")注解来注入配置中的参数值有时候会显得非常笨重。特别是当你有多个参数的时候。或者是你的参数值是继承得来的，spring boot提供了额外的和配置参数打交道的方式。这个方式就是专门实例化某些bean来管理和验证这些参数。因为这些bean有一个特点就是与这些参数高度吻合。如下:
+
+```
+package com.example;
+
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+@ConfigurationProperties("acme")
+public class AcmeProperties {
+
+	private boolean enabled;
+
+	private InetAddress remoteAddress;
+
+	private final Security security = new Security();
+
+	public boolean isEnabled() { ... }
+
+	public void setEnabled(boolean enabled) { ... }
+
+	public InetAddress getRemoteAddress() { ... }
+
+	public void setRemoteAddress(InetAddress remoteAddress) { ... }
+
+	public Security getSecurity() { ... }
+
+	public static class Security {
+
+		private String username;
+
+		private String password;
+
+		private List<String> roles = new ArrayList<>(Collections.singleton("USER"));
+
+		public String getUsername() { ... }
+
+		public void setUsername(String username) { ... }
+
+		public String getPassword() { ... }
+
+		public void setPassword(String password) { ... }
+
+		public List<String> getRoles() { ... }
+
+		public void setRoles(List<String> roles) { ... }
+
+	}
+}
+```
+
+前面的POJO定义了下面的一些参数:
+
+acom.enabled.默认值是false,
+acme.remote-address,InetAddress 继承自String
+acme.security.username,嵌套了一个Security类型。类型中的那么字段由配置参数的name属性决定。
+acme.security.password.
+acme.security.roles.字符串类型的集合。
+
+> 从标准java绑定描述器开始，从getters和setters方法是强制性的。
