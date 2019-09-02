@@ -1303,4 +1303,126 @@ acme.security.username,嵌套了一个Security类型。类型中的那么字段�
 acme.security.password.
 acme.security.roles.字符串类型的集合。
 
-> 从标准java绑定描述器开始，从getters和setters方法是强制性的。
+> 。get和set方法通常都是强制性的。但是自从通过标准java bean属性描述器绑定属性以来，下面的set方法却可以省略：
+
+```
+1.地图,一旦他们初始化了之后。他们只需要get方法。但并不必须set方法。
+2.集合或者时数组。
+3.嵌套pojo.
+```
+
+> 某些朋友使用Lombok来添加自动添加get和set方法。请确保lombok在自动添加的时候不会附带生成一些特殊的构造函数。因为他们会被容器用来实例化对象。最后只有标准java bean属性会被使用。并且不支持静态属性注入。
+
+你同样需要创建属性类来承接由@EnabledConfiguation注解带来的属性。
+
+```
+@Configuration
+@EnableConfigurationProperties(AcmeProperties.class)
+public class MyConfiguration {
+}
+```
+
+当有@ConfigurationProperties注解的bean是由上面这种方式注册的时候。通常这个bean就叫做：<prefix>-<fqn>
+
+下面的配置创建了一个常规的bean AcmeProperties.我们建议@ConfigurationProperties只用来配置环境中的参数。但是并不配置常规的bean.一定要记住@EnableConfigurationProperties注解会自动配置到你的应用中。这样每一个带有@ConfigurationProperties注解的bean都会从系统环境中配置。不需要配置@EnableConfigurationProperties(AcmeProperties.class)到你的配置类中。你只需要如下操作即可：
+
+```
+@Component
+@ConfigurationProperties(prefix="acme")
+public class AcmeProperties {
+
+	// ... see the preceding example
+
+}
+```
+
+上面的这种与yaml文件结合得非常好：
+
+```
+acme:
+	remote-address: 192.168.1.1
+	security:
+		username: admin
+		roles:
+		  - USER
+		  - ADMIN
+```
+
+你也可以通过下面得方式使用@ConfigurationProperties注解：
+
+```
+@Service
+public class MyService {
+
+	private final AcmeProperties properties;
+
+	@Autowired
+	public MyService(AcmeProperties properties) {
+	    this.properties = properties;
+	}
+
+ 	//...
+
+	@PostConstruct
+	public void openConnection() {
+		Server server = new Server(this.properties.getRemoteAddress());
+		// ...
+	}
+
+}
+```
+
+### 第三方配置
+
+与使用@ConfigurationProperties一样的是。你也可以把他用在@Bean方法中。如果你想要绑定某些属性到第三方组件中得时候。这种方式就非常有用了。为了用应用环境中得参数配置某一个bean.你同样可以添加@ConfigurationProperties到你得配置类中。如下：
+
+```
+@ConfigurationProperties(prefix = "another")
+@Bean
+public AnotherComponent anotherComponent() {
+	...
+}
+```
+
+从上面可以看到。任何prefix = another的属性会被配置到AnotherComponentbean中。这就和前面的AcmeProperties类似。
+
+### 轻松绑定
+
+spring boot使用一些轻松的规则来绑定系统环境中的参数到有@ConfigurationProperties注解的bean中。因此bean中的名称和系统环境中的名称可以不相同。下面就是一个例子。他们使用了点号分隔符。context-path会被绑定到contextPath中。也会寻找雷同的应用环境参数(比如：PORT会被绑定到port)
+
+```
+@ConfigurationProperties(prefix="acme.my-project.person")
+public class OwnerProperties {
+
+	private String firstName;
+
+	public String getFirstName() {
+		return this.firstName;
+	}
+
+	public void setFirstName(String firstName) {
+		this.firstName = firstName;
+	}
+
+}
+```
+
+了解下下面的例子:
+
+```
+acme.my-project.persion.first-name       //烤串式写法,
+acme.myProject.person.firstName			 //标准驼峰写法
+acme.my_project.person.first_name        //下划线写法,这种模式是标准模式的
+ACME_MYPROJECT_PERSON_FIRSTNAME          //一般定义系统变量使用这种写法
+```
+
+> 前缀用法必须使用烤串式写法(小写，用-分隔)
+
+下面是一些配置使用的写法:
+
+```
+
+a | b |
+c | d |
+
+```
