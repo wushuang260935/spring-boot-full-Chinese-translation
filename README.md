@@ -1420,8 +1420,318 @@ ACME_MYPROJECT_PERSON_FIRSTNAME          //一般定义系统变量使用这种�
 
 下面是一些配置使用的写法:
 
-name | 价格 |  数量  
+属性源 | 写法 | 列表  
 -|-|-
-香蕉 | $1 | 5 |
-苹果 | $1 | 6 |
-草莓 | $1 | 7 |
+属性文件 | 驼峰写法,烤串写法,下划线写法 | 标准列表写法使用[]或者逗号分隔 |
+YAML文件 | 驼峰写法,烤串写法,下划线写法 | 标准列表写法或者逗号分隔 |
+环境变量文件 | 全大写格式使用下划线分隔 | 变量名中如果包含数字，那么数字的前后方应该用_链接:MY_ACME_1_OTHER = my.acme[1].other |
+系统属性 | 驼峰写法,烤串写法,下划线写法 | 标准列表写法使用[]或者逗号分隔 |
+
+当你想绑定某些之到一个map集合中的时候。如果键中包含的字符不只是26个字符，也不只是数字，或者下划线的话，你需要用中括号把他们阔起来。这样能够保留他们的整体性。如果没有括号的保护，不是字母表中的字符或者数字或者下划线的字符会被自动移除。如下:
+
+```
+acme:
+  map:
+    "[/key1]": value1
+    "[/key2]": value2
+    /key3: value3
+```
+
+上面的属性中进入map的键是: /key1,/key2,key3
+
+### 合并复杂类型
+
+当某一个列表在不同的配置环境中有不同的配置。当我们从某一个配置环境跳转到另一个配置环境中的时候。我们就需要对原来的配置进行重载。
+例如: 假设MyPojo类有两个属性name和description。两个属性的默认值是null.下面的配置类种需要一个MyPojo列表:
+
+```
+@ConfigurationProperties("acme")
+public class AcmeProperties {
+
+	private final List<MyPojo> list = new ArrayList<>();
+
+	public List<MyPojo> getList() {
+		return this.list;
+	}
+
+}
+```
+
+如果我们的配置文件中是这样的:
+
+```
+acme:
+  list:
+    - name: my name
+      description: my description
+---
+spring:
+  profiles: dev
+acme:
+  list:
+    - name: my another name
+```
+
+上面的配置中假设dev模式未开启.那么list种就会默认加载name = my name的MyPojo类。但是如果dev模式开启了。那么当加载的时候,list种就会加载dev中的两个值。key1.name=dev name 1 key1.description = my description 1和key2.name = dev name 2 key2.description = dev description 2
+
+> 上面的合并规则适合所有的属性资源而不仅仅是YAML文件。
+
+### 属性转换
+
+如果你的应用中有一些第三方属性。并且这些属性需要配置到你的@ConfigurationProperties中。那么spring boot就会尝试强制性的转换这些属性。把他们变成你配置类中需要的类型。并且spring boot还支持由你来自定义强制转换逻辑。你只需要实现ConversionService接口。或者你也可以通过返回一个CustomEditorConfigurer bean来自定义属性强制转换器。
+
+> 由于这些bean这应用的早期就需要了。因此你最好限制你的自定义ConversionService中的依赖引用。基本上,你在这个service中引用的所有依赖都不会在应用创建的时候初始化。
+
+#### 转换间隙
+
+spring boot正在努力地支持间隙策略。如果你的应用中有一个java.time.Duration属性。那么下面的应用格式就可以使用:
+
+> 常规的long型。它是你的Duration属性的默认类型。
+> 标准ISO-8601格式
+>键值对
+
+```
+@ConfigurationProperties("app.system")
+public class AppSystemProperties{
+
+	@Duration(ChronoUnit.SECONDS)
+	private Duration sessionTimeOut = Duration.ofSeconds(30);
+	
+	private Duration readTimeout = Duration.ofMills(1000);
+	
+	public Duration getSessionTimeout(){
+		return this.sessionTimeout;
+	}
+	
+	public void setSessionTimeout(Duration sessionTimeout){
+		this.sessionTimeout = sessionTimeout;
+	}
+ 
+ 	public Duration getReadTimeout(){
+ 		return this.readTimeout;
+ 	}
+ 	
+ 	public void setReadTimeout(Duration readTimout){
+ 		this.readTimeout = readTimeout;
+ 	}
+}
+```
+
+为了指定一个30秒便会过期的会话。你可以使用30,PT30S,30s三种类型。
+
+#### 转换数据尺寸
+
+spring框架有一个DataSize值，它允许你配置字节格式的数据。和上面的同样:
+
+```
+@ConfigurationProperties("app.io")
+public class AppIoProperties {
+
+	@DataSizeUnit(DataUnit.MEGABYTES)
+	private DataSize bufferSize = DataSize.ofMegabytes(2);
+
+	private DataSize sizeThreshold = DataSize.ofBytes(512);
+
+	public DataSize getBufferSize() {
+		return this.bufferSize;
+	}
+
+	public void setBufferSize(DataSize bufferSize) {
+		this.bufferSize = bufferSize;
+	}
+
+	public DataSize getSizeThreshold() {
+		return this.sizeThreshold;
+	}
+
+	public void setSizeThreshold(DataSize sizeThreshold) {
+		this.sizeThreshold = sizeThreshold;
+	}
+
+}
+```
+
+你可以在配置文件中配置:10,10MB,256,256B
+
+### 配置属性的验证
+
+不管配置了@ConfigurationProperties的类是否配置了@Validation注解.spring boot都会尝试去验证它。你可以使用JSR-303 javax.validation 直接限制你的配置类上的注解。请确保有一个JSR-303实例在你的类路径中。示例如下:
+
+```
+@ConfigurationProperties(prefix="acme")
+@Validated
+public class AcmeProperties {
+
+	@NotNull
+	private InetAddress remoteAddress;
+
+	// ... getters and setters
+
+}
+```
+
+> 如果某一个配置类中带有@Validated注解。那么要触发这个类的验证的另一个方法就是：使用一个有@Bean注解到某一个方法中。这个方法用来创建前面说的配置类对象。
+
+尽管对配置中的属性进行赋值的时候会做验证。但是还是我们最好把@Valid注解这个配置类中。因为这样能够保证在没有属性被找到的时候配置类的验证仍然能够触发。下面的例子基于上一个例子而来:
+
+```
+@ConfigurationProperties(prefix="acme")
+@Validated
+public class AcmeProperties {
+
+	@NotNull
+	private InetAddress remoteAddress;
+
+	@Valid
+	private final Security security = new Security();
+
+	// ... getters and setters
+
+	public static class Security {
+
+		@NotEmpty
+		public String username;
+
+		// ... getters and setters
+
+	}
+
+}
+```
+
+上面的例子中，对于AcmeProperties来说@Valid本来可以不用加，因为自己已经有了@NotEmpty了，但是为了保证能够触发对Security的验证。最好还是加上
+
+你也可以添加自定义的验证器。只需要使用@Bean注解创建出你的自定义验证器对象。但是@Bean的注解需要被定义为static。配置类是在应用的生命周期的很早的阶段被创建的。因此声明一个静态的@Bean方法,可以允许应用在还没有实例化@Configuration类的时候就可以创建出对象了。这样做可以避免早期实例化过程中产生的问题。
+
+> spring-boot-actuator模块中有一个观测点。这个观测点可以暴露所有的@ConfigurationProperties的bean。使用浏览器访问/actuator/configprops或者具有相同工能的JMX观测点。
+
+#### @ConfiguraztionProperties VS @Value
+
+@Value配置文件是一个核心的容器特性。但是他并不像@COnfigurationProperties一样提供“类型安全”特性。下面的表格总结了这两个配置 的不同特性:
+
+特性 | @ConfigurationProperties | @Value  
+-|-|-
+轻松绑定 | YES | NO
+原数据支持 | YES | NO
+SpEL评估 | NO | YES
+
+如果你为你的组件定义了一系列属性键。我们建议你把他们定义在某一个POJO中。并且使用@ConfigurationProperties。你同样应该意识到。自从@Value并不支持轻松绑定之后，如果你想要使用环境参数来赋值。它就不是一个好的选项。最后。当你使用@Value注解写SpEL表达式的时候。这些表达式不会从应用配置文件中获取。
+
+## 精简配置
+
+spring 的精简配置 提供了这样的一种方式: 把你的部分应用配置分离出来。让这部分在特定的环境下才能够使用。任何@Component或者@Configuration都可以被标识为@Profile。以此来限制它的加载环境。如下所示:
+
+```
+@Configuration
+@Profile("production")
+public class ProductionCOnfiguration{
+}
+```
+
+你可以使用一个spring.profiles.active(这是一个环境属性)来指定哪些精简配置会被加载。你也可以把spring.profiles.active定义在很多地方。比如:application.properties.
+```
+spring.profiles.active=dev,hsqldb
+```
+你也可以在启动应用的时候以命令行的形式指定哪些精简配置会被启动:
+```
+--spring.profiles.active=dev,hsqldb
+```
+
+### 添加活跃的精简配置
+
+与其他配置一样,spring.profiles.active会遵循下面的顺序:最高的PropertySource(属性源)是最高顺序,这就意味着你可以在application.properties文件中指定某一个精简配置。但是你却可以通过命令行的指定方式来覆盖之前application.properties的值。
+
+有时候，我们希望替换部分的精简配置而不是全部。那么这时候我们就使用spring.profiles.include.这个属性被用来无条件加载精简配置。SpringApplication也有一个API来设置额外精简配置。就是SpringApplication.setAdditionalProfiels()。
+
+举一个例子：当含有下面的配置的应用在使用命令行启动的时候:--spring.profiels.active=prod,那么proddb和prodmq也会被加载:
+
+```
+my.property:fromyamlfile
+spring.profiles:prod
+spring.profiels.include:
+- proddb
+- prodmq
+````
+
+> 请注意spring.profiels也可以使用YAML文件来定义。
+
+### 以编程方式设置精简配置
+
+在你的应用启动之前,你可以通过调用SpringApplication.setAdditionalProfiels()方法来设置精简配置。还有一种方式就是实例化COnfigurableEnvironment接口。
+
+### “特定的精简配置”配置文件
+
+application.properties(application.yml)和@ConfigurationProperties的文件中都可以由“特定的精简配置”变量。
+```
+
+## 日志
+
+spring boot使用 commons Loggings来打印所有的国际化日志。但同时也开放了底层的接口。spring boot日志的默认配置由java.Util.Logging,Log4j2,Logback提供。这几个都是默认使用控制台打印日志。
+
+如果你使用spring boot starters。使用的日志工具是logback
+
+> java有很多日志框架,上面的日志框架看起来很混淆.实际上你不需要调整你的日志依赖。spring boot默认的配置已经非常好了。
+
+### 日志格式
+
+默认的日志格式是从spring boot resemble中来的。如下:
+
+```
+2014-03-05 10:57:51.112  INFO 45469 --- [           main] org.apache.catalina.core.StandardEngine  : Starting Servlet Engine: Apache Tomcat/7.0.52
+2014-03-05 10:57:51.253  INFO 45469 --- [ost-startStop-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2014-03-05 10:57:51.253  INFO 45469 --- [ost-startStop-1] o.s.web.context.ContextLoader            : Root WebApplicationContext: initialization completed in 1358 ms
+2014-03-05 10:57:51.698  INFO 45469 --- [ost-startStop-1] o.s.b.c.e.ServletRegistrationBean        : Mapping servlet: 'dispatcherServlet' to [/]
+2014-03-05 10:57:51.702  INFO 45469 --- [ost-startStop-1] o.s.b.c.embedded.FilterRegistrationBean  : Mapping filter: 'hiddenHttpMethodFilter' to: [/*]
+```
+
+下面的项会被打印出来:
+
+> 日期和时间: 精确到毫秒并且以排序
+> 日志级别： ERROR,WARN,INFO,DEBUG,TRACE
+> 进程ID
+> ---分隔符来区别出真正的日志开头
+> 线程名:线程名使用中括号括起来
+> 日志名:实际上就是打印这条日志的类名称
+> 最后就是日志消息:
+
+logback没有FATAL级别。只有ERROR级别.
+
+### 控制台输出
+
+默认地，日志配置会在每一条日志写入日志文件之后再把他们返回给控制台。默认地,ERROR级别,WARN级别,INFO级别的日志会被打印。你也可以打印DEBUG级别的日志。只需要再命令行后面加一个:
+
+> java -jar myapp.jar --debug  当然你也可以在application.properties文件中配置:debug=true
+
+当使用debug模式的时候，一系列的核心日志器(内置容器,hibernate,spring boot)会打印更多的信息,但是启用debug模式并不打印所有的DEBUG级别的日志。
+
+你可以使用--trace标志来启用trace模式.这样就能打印trace级别的日志了。(有trace级别的日志有：内置容器,hibernate schema生成器,所有的spring portfolio)
+
+#### 彩色打印
+
+如果你的终端支持ANSI,就可以使用彩色打印，彩色打印的好处就是提高代码的可读性。你可以设置spring.output.ansi.enabled属性。并不常用的颜色编码可以通知%clr转换器配置。%clr(%5p)
+
+下面是一个使用彩色打印的例子:
+
+级别 | 颜色
+- | -
+FATAL | 红
+ERROR | 红
+WARN | 黄
+INFO | 绿
+DEBUG | 绿
+TRACE | 绿
+
+额外地,你可以指定你想要的颜色和格式.并且把他们配置在转换器上。比如：想要把文本内容变为黄色的，你可以这样:
+> %clr(%d{yyyy-MM-dd HH:mm:ss}){yellow}
+除了黄色你还可以:
+.blue
+.cyan
+.faint
+.green
+.magenta
+.red
+.yellow
+
+### 文件日志打印
+
+默认地:spring boot只会打印日志到控制台上而不会写到日志文件中。如果你除了打印到控制台之外还想要打印到日志文件中。你需要设置logging.file或者logging.path
