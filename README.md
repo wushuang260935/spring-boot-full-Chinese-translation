@@ -1731,6 +1731,121 @@ SpEL评估 | NO | YES
 
 ### 文件日志打印
 
-默认地:spring boot只会打印日志到控制台上而不会写到日志文件中。如果你除了打印到控制台之外还想要打印到日志文件中。你需要设置logging.file或者logging.path属性,下面的属性展示了logging-*.properties文件们是怎么一起使用的
+默认地:spring boot只会打印日志到控制台上而不会写到日志文件中。如果你除了打印到控制台之外还想要打印到日志文件中。你需要设置logging.file或者logging.path属性
+
+当日志文件达到10M的时候就会被轮换掉，从新生成新的日志我呢见.由于默认的控制台输出,ERROR级别,WARN级别,和INFO级别的消息会记录在日志文件中。使用logging.file.max-size属性可以修改你的日志文件大小。如果有了logging.file.max-history属性的值，在这个值之前生成的日志文件会被删除掉.否则所有日志文件就会被一直保存。
+
+> 日志系统会在应用的生命周期的早期阶段加载。这样就导致了:属性文件中有日志的相关配置的话,但是却使用@PropertySource注解加载属性文件.这时候日志属性还没有加载进来。
+
+> 日志属性是独立于整个日志架构之外的。这样，具体的配置关键字比如说:logback.configuationFile才不会被spring boot纳入管理体系中。
+
+### 日志级别
+
+spring 环境中可以通过设置logging.level.<logger-name>=<level>来设置日志系统中的日志级别.level就是前面的那几个。TRACE,DEBUG,INFO,WARN,ERROR,FATAL,OFF,root层级的日志级别可以通过logging.level.root来配置。下面的例子展示了一些必要的日志设置:
+
+> logging.level.root = WARN
+> logging.level.org.springframework.web=DEBUG
+> logging.level.org.hibernate = ERROR
+
+### 日志群组
+
+我们一般会把有关联的日志器配置集中到一起，这样他们便于集体调整，比如说:你可能会修改与tomcat相关的日志的级别。但是你可能不记得与tomcat日志相关的依赖包了。为了解决这个问题，spring boot允许你在spring 环境中定义日志群组。下面就是一个例子:
+
+> logging.group.tomcat=org.apache.catalina,org.apache.cyota,org.apache.tomcat
+
+一旦定义,你就可以修改所有的日志级别了，只需要做如下修改:
+
+> logging.level.tomcat=TRACE
+
+spring boot包含以下预定义日志群组。而且这些群组是不受spring 容器管理的:
+
+> web=org.springframework.core.codec,org.springframework.http,org.springframework.web
+> sql=or.springframework.jdbc.core,org.hibernate.SQL
+
+### 自定义日志配置
+
+把你需要的依赖引入到类路径上就能够启用其内部的日志系统。而且你也可以把自定义的日志配置文件配置到类路径中达到定制日志配置的效果。最后你还可以使用spring环境的logging.config来配置日志。
+
+使用org.springframework.boot.logging.LoggingSystem系统属性来强制spring boot使用你指定的日志体系。org.springframework.boot.logging.LogginfSystem的值应该实现LoggingSystem接口的类的全称.当然你也可以通过把它置为空来禁用所有的spring boot日志配置。
+
+> 从日志在应用上下文创建之前就加载的那个时候开始，通过spring的@PropertySource和@Configuration注解所在的配置文件来控制日志就是不可能的了。所以唯一能够控制系统日志属性的方法就是通过系统参数。
+
+根据经典的应用,你需要下列日志的依赖:
+
+日志系统|定制文件
+-|-
+Logback|logback-spring.xml,logback-spring.groovy,logback.xml,logback.groovy
+log4j2|log4j2-spring.xml,log4j2.xml
+JDK|logging.properties
+
+>如果条件允许的话，我们建议你使用带有*-spring.xml的配置文件来配置你的日志，比如:使用logback-spring.xml而不是logback.xml.如果你使用标准配置路径。spring不能够完全地加载系统初始项。
+
+>我们现在已知java Util logging有加载问题:如果从运行jar包中执行的话。这个包会出现问题。因此我们建议你规避它。
+
+为了帮助你自定以日志。有很多的日志参数从spring 环境中转换到了系统配置中。如下面所示:
+
+spring环境|系统参数|描述
+-|-|-
+logging.exception-conversion-word|LOG_EXCEPTION_CONVERSION_WORD|当发生日志异常的时候需要转换的文字
+logging.file|LOG_FILE|如果你使用了这个参数,它会被用作默认的日志配置文件。
+logging.file.max-size|LOG_FILE_MAX_SIZE|最大的日志文件大小，但是前提是启用了logging.file。并且只支持默认的logback设置
+logging.path|LOG_PATH|如果你使用了这个参数，它会被用作默认的日志配置。
+logging.pattern.console|CONSOLE_LOG_PATTERN|设置打印在控制台中的日志格式,只支持默认的logback设置
+logging.pattern.dateformat|LOG_DATEFORMAT_PATTERN|只支持默认的logbak设置。日志时间格式设置
+logging.pattern.file|FILE_LOG_PATTERN|前提是logging.file启用。支支持默认的logbak设置。日志文件中的日志格式
+logging.pattern.level|LOG_LEVEL_PATTERN|只支持more你的logback设置。这个参数会根据日志级别来确定日志格式
+PID|PID|当前线程的ID
+
+你也可以通过logback,log4j2,java Util logging来仔细地了解日志系统的各个环节。
+
+> 如果你想在日志参数中使用占位符，你应该使用spring boot语法而不是下划线语法。可以明确的是：如果你是用logback.你应该使用":"冒号作为分隔符.而不是使用-
+
+> 通过重载LOG_LEVEL_PATTERN或者是logback中的logging.pattern.level的值你就可以添加MDC 和其他的ad-hoc内容到日志内容中。比如:如果你用:logging.pattern.level=user:%X{user} %5p 那么默认的日志格式就会包含当前日志的操作用户的MDC内容。如下所示:
+
+```
+2015-09-30 12:30:04.031 user:someone INFO 22174 --- [  nio-8080-exec-0] demo.Controller
+Handling authenticated request
+```
+
+### logback扩展
+
+spring boot包含了很多的logback扩展,这些扩展可以帮助你补充最新的日志配置属性。你可以把这些扩展放到你的logback-spring.xml中:
+
+> 因为标准logback.xml配置文件在很早期的时候就被加载了。所以你不能再这里面添加扩展，因为应用现在还不具备识别这些扩展的能力。因此你只能选择加到logback-spring.xml中或者定义一个logging.config属性。
+
+> 扩展还有一个局限性就是它不能和logback的配置扫描一起使用。如果你这样做，就会出现下面的配置文件错误:
+
+```
+ERROR in ch.qos.logback.core.joran.spi.Interpreter@4:71 - no applicable action for [springProperty], current ElementPath is [[configuration][springProperty]]
+ERROR in ch.qos.logback.core.joran.spi.Interpreter@4:71 - no applicable action for [springProfile], current ElementPath is [[configuration][springProfile]]
+```
+
+#### 详细的简要配置
+
+<springProfiles>标签允许你根据当前spring简要配置来引入或者排除一些配置.springprofiles标签有一个name属性。它可以指定哪一个简要配置接受下面的参数.springprofile既可以接收简要配置的名称也可以接收简要配置表达式.如:production&eu-central|eu-west.示例如下:
+
+```
+<springprofile name="staging">
+	<!-- configuration to be enabled when the "staging" profile is active-->
+</springprofile>
+<springprofile name="dev|staging">
+	<!-- configuration to be enabled when the "staging" or dev profile is active>
+</springfile>
+<springprofile name="!production">
+	<!-- configuration to be enabled when production profile is not active>
+</springfile>
+```
+
+#### 环境属性
+
+<springProperties>标签允许你暴露出spring环境中的logback配置。如果你想从你的application.properties中获取logback的相关配置值得时候，这个暴露得方式就会非常有用了。这个标签和<property>有点类似。springProperties中得scope属性还可以规定取值范围。source属性指定从这个源中获取值。还有默认值defaultvalue,示例如下:
+
+```
+<springProperties scope="context" name="fluentHost" source="myapp.fluentd.host" default="localhost"/>
+<appender name="FLUENT" class="ch.qos.loback.more.appenders.DataFluentAppender">	 
+	<remoteHost>${fluentHost}</remoteHost>
+	...
+</appender>
 
 
+```
