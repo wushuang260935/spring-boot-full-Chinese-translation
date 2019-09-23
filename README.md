@@ -1712,8 +1712,14 @@ logback没有FATAL级别。只有ERROR级别.
 
 下面是一个使用彩色打印的例子:
 
+特性 | @ConfigurationProperties | @Value  
+-|-|-
+轻松绑定 | YES | NO
+原数据支持 | YES | NO
+SpEL评估 | NO | YES
+
 级别 | 颜色
-- | -
+-|-
 FATAL | 红
 ERROR | 红
 WARN | 黄
@@ -1734,4 +1740,6 @@ TRACE | 绿
 
 ### 文件日志打印
 
-默认地:spring boot只会打印日志到控制台上而不会写到日志文件中。如果你除了打印到控制台之外还想要打印到日志文件中。你需要设置logging.file或者logging.path
+默认地:spring boot只会打印日志到控制台上而不会写到日志文件中。如果你除了打印到控制台之外还想要打印到日志文件中。你需要设置logging.file或者logging.path属性,下面的属性展示了logging-*.properties文件们是怎么一起使用的
+
+
