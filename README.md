@@ -1718,15 +1718,6 @@ logback没有FATAL级别。只有ERROR级别.
 原数据支持 | YES | NO
 SpEL评估 | NO | YES
 
-级别 | 颜色
--|-
-FATAL | 红
-ERROR | 红
-WARN | 黄
-INFO | 绿
-DEBUG | 绿
-TRACE | 绿
-
 额外地,你可以指定你想要的颜色和格式.并且把他们配置在转换器上。比如：想要把文本内容变为黄色的，你可以这样:
 > %clr(%d{yyyy-MM-dd HH:mm:ss}){yellow}
 除了黄色你还可以:
