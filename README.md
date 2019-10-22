@@ -1849,3 +1849,123 @@ ERROR in ch.qos.logback.core.joran.spi.Interpreter@4:71 - no applicable action f
 
 
 ```
+
+## 国际化
+
+spring boot支持信息本地化，这样可以满足应用的不用语言需求。默认地，spring boot会去类路径中的最顶层寻找messages配置(也就是本地化信息的相关配置)。
+就像其他属性一样。我们使用spring.messages来配置我们的信息属性。
+
+```
+spring.messages.basename=messages,config.i18n.messages
+spring.messages.fallback-to-system-locale=false
+```
+
+> spring.messages.basename支持逗号分隔
+
+## JSON
+
+spring boot 支持下面的json工具：
+
+> Gson
+> Jackson
+> JSON-B
+
+其中默认使用的是Jackson
+
+### Jackson
+
+默认配置就是使用的Jackson并且Jackson是spring-boot-starter-json的一部分。如果你的应用的类路径中有Jackson。那么spring boot会自动装配ObjectMapper.
+
+### Gson
+
+Gson也是自动装配的一部分。如果你的应用的类路径中有Gson。那么Gson对象会自动配置。你可以使用spring.gson.*来对Gson进行自定义配置。如果你还想控制Gson的更多属性。可以使用一个或者多个GsonBuilderCustomizer类。
+
+### JSON-B
+
+和前面的都很类似。如果类路径中有jsonb。那么Jsonb类就会被创建。
+
+
+## spring boot扩展web应用
+
+
+### 扩展spring web MVC框架
+
+spring boot非常适合web应用开发。通过使用内置的tomcat/jetty/undertow/netty.你可以创建一个自包含的HTTP服务。大多数web应用使用spring-boot-starter-web实现快速开发。你也可以通过使用spring-boot-starter-webflux来创建一个响应式web应用。
+
+#### spring web MVC框架
+
+简称springMVC,允许你创建特殊的@Controller和@RestController类来处理	HTTP请求。
+
+####  springMVC自动配置
+
+spring boot为springMVC提供了自动装配。下面是自动装配提供的一些例子:
+
+> 内含了ContentNegotatingViewResolver,BeanNameViewResolver,MessageCodesResolver.
+> 提供对静态资源的服务。包括对index.html,Webjars的服务都可以。
+> Convertor,GenericConverter,HttpMessageConverters,Formatter的自动注册
+> 支持自定义favicon
+> 自动使用了ConfiguableWebBindingInitializer
+
+如果你在保留spring boot MVC特性的同时还想额外的MVC配置。（比如拦截器(interceptor,格式化(formatters),视图控制器view controller等等).你可以添加你自己的WebMvcConfigurer类型的配置类(@Configuration class)但是不能使用@EnableWebMvc。如果你使用了@EnableWebMvc那么spring boot MVC的特性就不会使用。如果你想要添加你自定义的RequestMappingHandlerMapping,RequestMappingHandlerAdapter,或者是ExceptionHandlerExceptionResolver,你可以这样做:实例化一个WebMvcRegistrationsAdapter来提供上述组件。
+
+#### HttpMessageConverters
+
+SpringMVC使用HttpMessageConverter接口来转换http请求和响应。对于一些默认值开箱即用。比如说:对象可以很轻松地转换为JSON或者XML。(默认使用UTF-8格式)
+
+如果你想自定义转换器。你可以使用HttpMessageConverters这个类。例子如下:
+
+```
+import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
+import org.springframework.context.annotation.*;
+import org.springframework.http.converter.*;
+
+@Configuration
+public class MyConfiguration{
+ @Bean
+ public HttpMessageConverters customConverters(){
+ 	HttpMessageConverter<?> addtional = ...;
+ 	HttpMessageConverter<?> another = ...;
+ 	
+ 	return new HttpMessageConverters(addtional,another);
+ }
+}
+```
+
+上面的例子中，你可以把任何你想添加的HttpMessageConverter都放到里面去。
+
+#### 自定义JSON序列化和额反序列化算法
+
+如果你使用Jackson来序列化和反序列化数据。那么你有可能想要自定义自己的序列化和反序列化类。spring boot 提供了一个@jsonComponent注解来注册这个序列化/反序列化类。
+
+所有在应用上下文(ApplicationContext)的@jsonComponent都会被自动注册并且服务Jackson格式。
+
+当然spring boot中处理Jackson有标准的序列化工具：JsonObjectSerializer,jsonObjectDeserializer。
+
+#### 消息编码解析器MessageCodesResolver
+
+SpringMVC有一个针对错误的策略:spring boot会把已绑定的错误信息交给MessageCodesResolver处理。并生成带有一定格式的错误信息。只需要配置spring.mvc.message-codes-resolver.format属性的PREFIX_ERROR_CODE或者配置POSTFIX_ERROR_CODE.
+
+#### 静态资源
+
+springboot默认对应用根路径/static或者/public或者/META-INF/resource路径提供静态资源支持。springboot使用ResourceHttpRequestHandler来处理静态资源请求。这个handler是从springMVC中来的。你可以通过添加你自己的WebMvcConfigurer来修改他本身的相关操作。这里面最重要的就是修改addResourceHandlers方法。
+你也可以配置自定义静态路径:
+
+>spring.mvc.static-path-pattern=/resources/*8
+
+你也可以使用 这个:
+
+> spring.resources.static-locations。默认使用的是/也就是根路径
+
+以上除了传统的静态资源以外，还有一种情况就是给Webjar提供静态资源。WebJar中静态资源一般在路径/webjars/**中。
+
+>webjar中不能使用src/main/webapp路径。虽然他是一个标准的web路径。但是它只能在普通jar包中使用。
+
+对于那些高级的springMVC资源处理特性。springboot同样支持。比如缓存。
+
+#### 欢迎页面
+
+springboot同时支持静态和模板页面。首先会在配置的静态资源路径中寻找index.html页面。如果没有找到。那么就会找index模板。如果都没有找到。那么就会走正常的index请求。
+
+#### 自定义Favicon
+
+spring boot会在静态资源路径和应用根目录中寻找favicon.ico。
