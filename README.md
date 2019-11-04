@@ -1,5 +1,5 @@
 # spring-boot-full-Chinese-translation
-spring boot全文档中文版翻译
+spring boot全文档中文版翻译,本文档很长，github中只能显示部分
 
 # 第一部分. Spring boot 文档
 
