@@ -1968,4 +1968,188 @@ springboot同时支持静态和模板页面。首先会在配置的静态资源�
 
 #### 自定义Favicon
 
-spring boot会在静态资源路径和应用根目录中寻找favicon.ico。
+spring boot会在静态资源路径和应用根目录中寻找favicon.ico。 	
+
+#### 路径匹配和内容过滤
+
+SpringMVC能够把到来的HTTP请求集合到请求处理器中。怎么做到的呢，就是通过检验请求路径，把它们一个个都分类到相应的匹配期中。举个例子：我们经常用的getMapping注解就具有给到来的请求分类的能力。
+
+ 默认地，springboot会禁用后缀匹配。也就是说类似于"/springboot.json"不会匹配到getMapping("/springboot")请求处理器中。这种匹配方式过去被称作最佳springMVC应用实践。应为这种匹配方式可以用来过滤那些请求头不正确的请求。而以前我们需要确保我们受理的请求是符合我们规范的。但是现在呢。我们觉得内容协商会更加靠谱一些。
+
+现在我们有了其他的方式来检验到来的请求是否配置了正确的请求头。那就是在请求路径后面加上一段查询参数。比如:"/springboot?format=json"会被配置成匹配到请求getMapping("/springboot")中。
+
+```
+spring.mvc.contentnegotation.favor-parameter=true
+
+# 我们可以改变参数名称。（默认的名称是format)：spring.mvc.contentnegotation.parameter-name=format
+
+#我们也可以自定义一个后缀文件名:spring.mvc.contentnegotation.media-types.markdown=markdown
+
+```
+
+但是如果你仍然喜欢使用后缀来过滤相关请求。那么就需要设置下面的配置:
+
+```
+spring.mvc.contentnegotation.favor-path-extension=true
+spring.mvc.pathmatch.use-suffix-pattern=true
+```
+
+另外，相对于开放所有的后缀格式。使用自己定义的后缀格式会更加安全:
+
+```
+spring.mvc.contentnegotation.favor-path-extension=true
+spring.mvc.pathmatch.use-registered-suffix-pattern=true
+
+你也可以使用下面的配置来注册额外的文件后缀/格式
+spring.mvc.contentnegotation.media-types.adoc=text/asciidoc
+```
+
+#### 可配置网络绑定加载器(ConfigurableWebBindingInitializer)
+
+对于某些特殊的HTTP请求，springMVC使用WebBindingInitializer来加载网络信息绑定器(WebDataBinder).如果你创建了自己的ConfigurableWebBindingInitializer，那么springboot就会自动配置到spring MVC中
+
+#### 模板引擎
+
+与REST web service一样，你同样可以使用springmvc来处理动态网页内容。springmvc支持很多的模板技术。包括thymeleaf,freemarker,jsps,以及包括springmvc自己和其他的一些引擎。
+
+springboot提供下列引擎的自动装配支持
+
+> freemarker
+> groovy
+> thymeleaf
+> mustache
+
+请尽量避免使用JSPs,目前所知，使用JSPs和内置servlet结合使用时会有很多的限制。
+
+如果使用这些引擎的时候使用的是默认配置，那么你的静态模板会自动从/src/main/resources/templates路径中获取
+
+你在运行你的应用的时候需要注意一个细节。IntelliJ IDEA 对于类路径(classpath)的排序有所不同。相比于使用maven或者graddle或者直接jar包启动你的应用，直接使用IDE中的main方法来启动项目会导致不同的类路径排序。这种差异可能会导致springboot找不到类路径的模板。如果发生了这种问题，需要调整IDE中的类路径排序。把相关模板资源置为首位。另外，你可以配置模板前缀(比如templates)，这样可以搜索所有包含这个前缀的目录：classpath*:/templates/.
+
+#### 错误处理
+
+默认地，springboot以敏感的方式为所有的错误提供了一个/error映射器。它在servlet容器中被注册成了一个全域错误页面。对于非浏览器客户端，页面会返回一个HTTP状态码，异常信息，以及一个包含错误详情的json格式的响应。而对于，浏览器客户端，会返回一个白色页面的视图，视图中包含一些简单的信息。(如果你想自定义这个视图，可以添加一个解析到error的视图).为了完全覆盖默认的错误处理流程，你可以实例化ErrorController并且用@bean注解来注册这个实例。你也可以实例化一个ErrorAttributes对象。这个对象只会覆盖错误内容，但是会使用原来的错误处理机制。
+
+基础错误控制器(BasicErrorController)可以用作自定义错误控制器的基础类。这对于你想要添加一个新类型处理器非常有用(我们默认的处理类型是text/html，那么我们可以自定义一个错误类）。因此，扩展BasicErrorController,添加一个有@RequestMapping注解(注解中需要使用produces属性)的方法。在方法中创建你定义的错误类。
+
+如果是为你的处理错误的controller返回特殊的JSON内容，你可以自定义一个类(注解成@ControllerAdvice)来自定义JSON文档。例子如下:
+
+```
+@ControllerAdvice(basePackageClasses	= AcmeController.class)
+public class AcmeControllerAdvice extends ResponseEntityExceptionHandler {
+ @ExceptionHandler(YourException.class)
+ @ResponseBody
+ ResponseEntity<?> handleControllerException(HttpServletRequest request,Throwable ex){
+  HttpStatus status = getStatus(request); 
+  return new ResponseEntity<>(new CustomErrorType(status.value(),ex.getMessage()),status);
+ }
+ 
+ private HttpStatus getStatus(HttpServletRequest request){
+  Integer statusCode = (Integer) request.getAttribute("javax.servlet.error.status_code");
+  if(statusCode == null){
+ 	return HttpStatus.INTERAL_SERVER_ERROR; 
+  } 
+  return HttpStatus.valueOf(statusCode);
+ }
+}
+```
+
+接下来。你的错误信息会被定义在相同路径中的AcmeController抛出来。格式就是一个CustomErrorType的json。而不是ErrorAttributes。
+
+##### 自定义错误页面
+
+如果你需要自定义一个特定错误码的页面。你可以在/error路径中添加一个页面。自定义页面可以是静态页面也可以是动态页面(可以使用模板引擎)。但是文件名称可以是那个特定的错误码也可以是错误集。例如404错误如下:
+
+```
+sr/
+	main/
+		java/
+		resources/
+			public/
+				error/
+					404.html
+```
+
+5xx错误如下:
+
+```
+src/
+	main/
+		java/
+		resource/
+			templates/
+				error/
+					5xx.ftl
+```
+
+对于其他比较复杂的映射。你同样可以实例化一个实现了ErrorViewResolver接口的类来处理。例子如下:
+
+```
+public class MyErrorViewResolver implements ErrorViewResolver {
+	@Override
+	public ModelAndView resolveErrorView(HttpServletRequest request,HttpStatus status,Map<String,Object> model){
+		return ...
+	}
+}
+```
+
+你也可以使用常规的springmvc特性，比如@ExceptionHandler方法和@ControllerAdvice类。ErrorController就会处理任何未处理的错误。
+
+##### 非springmvc映射错误页面
+
+对于非springmvc应用，你可以使用ErrorPageRegister接口来直接注册ErrorPages对象.这个抽象类会直接和内置servlet容器工作。例子如下:
+
+```
+@Bean 
+public ErrorPageResiger errorPageRegister{
+	return new MyErrorPageRegistrar();
+}
+
+private static class MyErrorRegistrar implements ErrorPageRegistrar{
+	
+	@Override
+	public void registerErrorPages(ErrorPageRegistry registry){
+		registry.addErrorPages(new ErrorPage(HttpStatus.BAD_REQUEST,"/400"));
+	}
+}
+```
+
+如果你注册了一个会被过滤器处理的ErrorPage类。(这种情况在非springmvc中非常常见).那么这个过滤器需要被注册成为错误分发器。例子如下:
+
+```
+@Bean
+public FilterRegistrationBean myFilter{
+	FilterRegistrationBean registration = new FilterRegistration();
+	registration.setFilter(new MyFilter());
+	...
+	registration.setDispatcherTypes(EnumSet.allOf(DispatcherType.class));
+	return registration;
+}
+```
+
+请注意默认的FilterRegistrationBean没有包含ERROR分发器。
+
+请注意: 当被部署到一个servlet容器中时。springboot使用它本身的错误页面过滤器来映射此错误请求到对应的错误页面。只有当请求的响应还没有被提交时，请求才会被映射到指定的错误页面上。我们了解到。WebSphere服务器8.0及后续版本会在servlet方法执行成功过后提交响应。你可以通过设置com.ibm.ws.webcontainer.invokeFlushAfterService 为false来禁用提交。
+
+#### spring HATEOAS风格
+
+。。。。
+
+#### 跨源共享(CORS)支持
+
+大多数浏览器都实现了跨源共享从而实现跨域。springmvc4.2以后开始支持跨源共享。在你的springboot应用中把与跨源共享有关的注解@CrossOrigin加到你的controller方法上就可以了并不需要其他特别的配置。
+
+通过注册一个自定义了方法addCorsMappings(CorsRegistry)的bean WebMvcConfigurer，我们可以实现全局跨域共享。例子如下:
+
+```
+@Configuration(proxyBeanMethod = false)
+public class MyConfiguration {
+	@Bean
+	public WebMvcConfigurer(){
+		@Override
+		public void addCorsMappings(CorsRegistry registry){
+			registry.addMapping("/api/**");		
+		}	
+	}
+}
+```
+
