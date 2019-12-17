@@ -2153,3 +2153,155 @@ public class MyConfiguration {
 }
 ```
 
+### spring webflux 框架
+
+在spring framework5.0中出现了一个叫做webflux的新式响应式web框架。与springmvc不一样的是。webflux是高度异步和无阻赛式的。webflux通过响应式计划[reactor project](https://projectreactor.io/)实现了它的响应式管道。webflux有两种风格:函数式和注解式。注解式与springmvc非常类似。如下:
+
+```
+	@RestController
+	@RequestMapping("/users")
+	public class MyController{
+		@GetMaping("/{user}")
+		public <Mono> getUser(@PathVariable Long user){
+			
+		}
+	}
+```
+
+'webflux.cn',如下所示，函数式变体就是把每一个请求一个个分割起来配置：
+
+```
+
+	@Configuration(proxyBeanMethods = false)
+	public class RouteConfiguration {
+		@Bean
+		public RouterFunction<serverResponse> monoRouterFunction(UserHandler userHandler){
+			return route(GET("/{user}").and(accept(APPLICATION_JSON)),userHandler::getUser)
+				  .andRoute(GET("/{user}/customers").and(accept(APPLICATION_JSON)),userHandler::getUserCustomers)
+				  .andRoute(DELETE("/{user}").and(accept(APPLICATION_JSON)),userHandler::deleteUser);
+		}
+	}
+	
+	@Component
+	public class UserHandler {
+		public Mono<serverResponse> getUser(ServerRequest request){
+			//...
+		}
+		public Mono<ServerResponse> getUserCustomers(ServerRequest request){
+			//...
+		}
+		public Mono<ServerResponse> deleteUser<ServerRequest request){
+			//...
+		}
+	}
+```
+
+WebFlux属于springframework的一部分。详情请看[参考信息](https://docs.spring.io/spring/docs/5.2.1.RELEASE/spring-framework-reference/web-reactive.html#webflux-fn)
+
+> 你可以定义很多的函数式变体(RouterFunction)来模块化路由器。另外，如果你需要调整优先级别，这些函数式变体是可以排序的。
+
+你可以添加spring-boot-starter-webflux启动器来开始你的webflux之旅。
+
+> 如果你同时添加spring-boot-starter-webflux和spring-boot-starter-web到你的应用中。那么就会导致springboot自动配置springmvc而不是webflux.
+> 但是这种行为是无法避免的。因为很多开发人员需要在springmvc应用中使用webflux启动器中的响应式webclient.
+>为了解决这个问题。你可以在springApplication中这样设置:SpringApplication.setWebApplicationType(WebApplication.REACTIVE).
+
+#### webflux自动配置
+
+springboot为webflux提供的自动配置可以在大多数应用中工作的很好。
+
+springboot的自动配置会把下面的属性加在spring默认配置的最上面:
+
+> 为HttpMessageReader和HttpMessageWriter的实例配置codecs
+> 提供静态资源的支持，包括对webjar的支持
+
+如果你想在保持webflux属性的同时也想添加额外的webflux配置。你可以这样做:添加一个自定义的WebFluxConfigurer类。把它设置为@Configuration类。但是不能设置为@EnableWebFlux
+
+当然，如果你想完全控制spring webflux,那么你在把WebFluxConfigurer类设置为@Configuration类之后，就添加@EnableWebFlux吧
+
+#### 带有HTTP Codecs的HttpMessageReaders和HttpMessageWriters 
+
+webflux使用HttpMessageReaders和HttpMessageWriters接口来转换HTTP的请求和响应。他们会被配置成带有CodecConfigurer接口信息的请求和响应。带有CodecConfigurer接口信息的请求和响应有这样的一种特点:会通过查看你的classpath的库来配置一些敏感信息。
+
+springboot也为codecs提供了专门的application.properties中配置:spring.codec.*.并且，你也可以通过使用CodecCustomizer实例来配置更多的自定义属性。举个例子:有一个spring.jackson.*的属性是给jackson的codec配置的。
+
+如果你需要添加和自定义codecs.你可以创建一个自定义的CodecCustomizer接口的实例。下面就是一个例子:
+
+```
+import org.springframework.boot.web.codec.CodecCustomizer;
+
+@Configuration(proxyBeanMethods = false)
+public class MyConfiguration {
+	@Bean
+	public CodecCustomizer myCodecCustomizer(){
+		return codecConfigurer->{
+			//...
+		};
+	} 
+}
+```
+
+#### 静态内容
+
+默认地,springboot从一个在classpath中名叫/static（/public or /resources or /META-INF/resource)的目录中提供静态服务。因此如果你使用的是webflux.那么就需要使用ResourceWebHandler来修改这种默认设置。方法就是添加你自己的WebFluxCOnfigurer实例并覆盖addResourceHandlers方法。
+
+默认地,静态资源资源会被自动匹配成/**(爷就是默认根目录下),但是这也是可以改的:通过设置spring.webflux.static-path-pattern属性。示例如下:
+
+> spring.webflux.static-path-pattern=/resources/**
+
+这样你就可以把webflux的静态资源目录变成/resources。
+
+当然这里还有另一个办法。那就是设置spring.resources.static-locations属性来改变静态目录。并且，你可以把这个属性的值设置成多个静态目录。设置好这个值之后，默认的欢迎页面就会去你设置的目录或者多个目录中寻找。如果静态目录中有一个index.html。那么它就会成为主页。
+
+除了上面列出来的“标准”静态目录之外。有一个特殊的地方就是webjar的静态内容：如果一个jar文件被打包成了webjar。那么它里面的资源目录就是/webjars/**。
+
+> webflux应用并不严格依赖servlet API。所以他不能被打包成war文件。因此它不能使用src/main/webapp目录。
+
+
+#### 模板引擎
+
+与REST web services一样。webflux同样也可以处理动态html内容。因为webflux同样支持模板引擎。包括：thymeleaf,freemarker,mustache.
+
+另外，springboot也对下面的模板引擎提供了自动配置：
+
+> freemarker,thymeleaf,mustache
+
+当你使用他们中任意一个的默认配置的时候。你的模板会自动从src/mairesources/templates中获取。
+
+
+#### 错误处理
+
+springboot提供了一个叫做WebExceptionHandler的接口来敏感地处理各种错误。如果你的应用中有WebExceptionHandler的接口实例。那么这个实例在请求的处理过程中，它是排在webflux处理器(handlers)的前面的。如果请求的发送方是一个服务器。它就会返回一个带有错误详情，HTTP状态，以及这个错误的消息(exception message)的json。如果请求的发送方式一个浏览器。他就会把错误详情，HTTP状态，错误消息(exception message)做成一个HTML返回回来。当然，这个错误页面我们是可以自定义的。那么怎么实现呢
+
+首先： 我们可以添加一个叫做"ErrorAttributes"的bean。(这个与我们传统的做法有区别。传统上，我们会替换或者添加一个更加美观的错误内容上去）
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
