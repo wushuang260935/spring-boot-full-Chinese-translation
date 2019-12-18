@@ -2275,19 +2275,193 @@ springboot提供了一个叫做WebExceptionHandler的接口来敏感地处理各
 
 首先： 我们可以添加一个叫做"ErrorAttributes"的bean。(这个与我们传统的做法有区别。传统上，我们会替换或者添加一个更加美观的错误内容上去）
 
+然后我们需要改变一下错误处理的流程:实现spring boot原生的ErrorWebExceptionHandler接口 并注册成实例。或者直接使用更高级AbstractErrorWebExceptionHandler抽象类。这个类比较符合webflux的风格。下面是一个例子:
+
+```
+public class CustomErrorWebExceptionHandler extends AbstractErrorWebExcetpionHandler{
+	//define constructor here
+	
+	
+	
+	@Override
+	protected RouterFunction<serverResponse> getRoutingFunction(ErrorAttributes errorAttributes){
+		return RouterFunctions.route(aPredicate,aHandler)
+						   .andRoute(anotherPredicate,anotherHandler);
+	}
+}
+```
+
+其实我们还提供了一个简单的处理实例，那就是：DefaultErrorWebExceptionHandler。你可以直接使用它
 
 
+#### 自定义错误页面
+
+针对某一个特定的错误码，如果你想返回自定义的错误页面的话，可以添加一个/error的文件夹，错误页面可以是静态页面，也可以嵌有模板引擎，只是页面的名称必须是错误码或者是错误码模糊匹配(比如5xx.mustache可以模糊匹配500等错误)
+
+```
+	src/
+		main/
+			java/
+			resources/
+			public/
+			error/
+				404.html
+```
+
+如果是模糊匹配的话就需要像这样:
+
+```
+	src/
+		main/
+			java/
+			resources/
+				templates/
+					error/
+						5xx.mustache
+```
+
+### web过滤器
+
+webflux提供了一个WebFilter接口(这里的WebFilter是用来国旅request response exchange的，和mvc的不一样).它的实例如果存在于应用上下文中的话，就会自动去国旅每一个exchange.
+
+webflux之间的顺序是很重要的，因此我们提供了@Order注解或者直接实现ordered接口来进行排序。
+
+当然如果你没有自定义顺序，那么可以参考下面的表格来判断过滤器的顺序:
+
+web Filter | order
+-|-
+MetricsWebFilter | Ordered.HIGHEST_PRECEDENCE + 1
+WebFilterChainProxy(Spring Security) | -100
+HttpTraceWebFilter | Orded.LOWEST_PRECEDENCE - 10;
+
+### JAX-RS 和 Jersey
+
+如果你更喜欢JAX-RS编码模型。那么除了springmvc之外，你还可以使用JAX-RS和Jersey中任何一个得实例。因为他们使用是开箱得。CXF要求你把Servlet和Filter注册成为bean.springboot也对jesery提供了支持。也就是说，jesery有一个启动器(starter)
+
+你的项目中除了要有spring-boot-starter-jersey之外。还需要有一个实现ResourceConfig接口的bean。因为需要用它来加载一些端点。
+
+```
+	@Component
+	public class JerseyConfig extends ResourceConfig{
+		public JerseyConfig(){
+			register(Endpoint.class);
+		}
+	}
+```
+
+```
+	jersey在支持扫描可执行项目方面能力非常有限。 比如：它不能在可执行jar包中或者WEB-INF/classes中扫描端点。因此为了解决这个问题，我们就需要这样：我们的项目中不能使用"包"级方法。并且端点必须使用“注册”级方法单独注册。例子如下所示:
+```
+
+更进一步地自定义，你可以随意地注册多个实现了ResourceConfigCustomizer接口的bean。所有注册的端点(endpoints)应该被同时标记为@GET等类型的HTTP自愿注解和@Component注解。例子如下:
+
+```
+	@Component
+	@Path("/hello")
+	public class Endpoint{
+		@GET
+		public String Message(){
+			return "hello";
+		}
+	}	
+```
+
+从端点(Endpoint)成为spring组件之后。它的生命周期就会被spring管理了。所以在端点里面可以使用@Autowired来注入它需要的依赖。以及使用@Value注解来注入我们已经有的配置。默认地，Jesery会被注册和映射到/*路径。那么如果想要修改它的映射路径。就需要在你的ResourceConfig接口实例中添加@ApplicationPath。
 
 
+通常情况下，Jersey会被设置为一种servlet。这个servlet属于ServletRegistrationBean类型。它通常被叫做JeseryServletRegistration.
+
+这个servlet一般是懒加载。但是修改的话就需要设置spring.jersey.servlet.load-on-startup.
+
+如果你要覆盖或者他们的话，新建一个名称一模一样的实体就行。
+
+过滤器也可以代替servlet，只需要设置:spring.jersey.type=filter.
+
+过滤器(Filter)有顺序注解@Order.你也可以设置顺序:spring.jersey.filter.order.
+
+不管是filter还是servlet。我们都可以通过使用spring.jersey.init.*的方式来来指定一系列的属性。这些属性用来提供它们的构造函数参数。
 
 
+### 内置servlet容器支持
+
+springboot提供了对某些容器的支持。tomcat,jetty,undertow。他们都有对应的启动器。我们只需要引用就可以了。他们的默认端口都是8080
 
 
+### Servlets,Filters 和 Listeners
+
+当内置容器的时候。你可以从servlet 实例中中注册他们。或者通过@Bean组件注册，也或者通过扫描servlet组件注册。	
+
+#### 注册servlet Filter Listener
+
+任何标题所示的实例，如果他们是一个bean，那么他们就会被拉入内置容器中。
+
+默认地，如果上下文中只包含一个servlet(它被映射到/)。相比于多个servlet的情况。一个servlet的名称就是路径前缀，然后就成了这样:"servletName/"
+
+如果你还想对他们进一步控制。可以使用ServletRegistrationBean,FilterRegistrationBean,ServletListenerRegistrationBean实例来进行完整控制。
+
+通常情况下过滤器(filter)无序不会出现安全问题。但是如果你需要排序的话，就需要添加@Order注解或者实现Ordered接口。
+
+但是请注意。如果这个Filter是由添加@Bean的方法生成的。那么这个方法上面不能添加@Order。那怎么办呢？(这里待实验，纯翻译不准确)
 
 
+### servlet上下文加载机制
+
+内置的servlet容器并不会直接之星servlet3.0+的接口或者是org.springframework.web.webapplicationInitliazer接口。
+
+唯独onStartup方法可以操作ServletContext.甚至有时候onStartup方法可以成为操作WebApplicationInitalizer的适配器。
 
 
+#### 扫描Servlets,Filters和Listeners
 
+当我们使用内置容器时。可以通过使用@ServletComponentScan来自动注册那些注有@WebServlet,@WebFilter,@WebListener的类。	
+
+> @ServletComponentScan在独立容器中是没有效果的，因为独立容器使用的是内置的查找机制来注册相关信息。
+
+
+### ServletWebServerApplicationContext
+
+在servlet生命周期期间，springboot会使用一种不同类型的ApplicationContext来给内置servlet容器提供支持。ServletWebServerApplicationContext就是一种特殊的WebApplicationContext。它的特点就是它可以通过“查询一个单例ServletWebServerFactory类型的bean”这个动作来重启。
+
+需要注意的是。像：TomcatServletWebServerFactory,JettyServletWebServerFactory,UndertowServletWebServerFactory是springboot自动配置上去的。
+
+> 通常情况下，你不需要关心这些实体类。他们大多数都是自动配置的，
+
+### 自定义内置servlet容器
+
+一般的servlet容器可以通过spring 环境(Environment)属性来配置。这些配置属性一般情况下可以在你的application.properties文件中配置。下面是一些常见的配置属性:
+
+> 网络设置:server.port(用来配置监听的端口号),server.address(用来绑定接口地址).
+
+> 会话设置:server.servlet.session.persistent(用来设置会话是否永不过期),server.servlet.session.timeout(会话过期时间).server.servlet.session.store-dir(会话中保存的本地信息).server.servlet.session.cookie.*(会话cookie设置)
+
+> 错误管理:server.error.path(错误页面路径)
+
+> [SSL](https://docs.spring.io/spring-boot/docs/2.2.2.RELEASE/reference/html/howto.html#howto-configure-ssl)
+
+> 
+[HTTP Compression](https://docs.spring.io/spring-boot/docs/2.2.2.RELEASE/reference/html/howto.html#how-to-enable-http-response-compression)
+
+
+#### 应用控制内置容器属性
+
+如果你想要使用应用来配置你的容器(有时候会有这种需求，程序来控制容器的一些属性).可以注册一个实现了WebServerFactoryCustomizer接口的bean。这个接口可以操作ConfigurableServletWebServerFactory.因为这个factory里面包含了很多属性的setter方法。举个例子:
+
+```
+import org.springframework.boot.web.server.WebServerFactoryCustomizer;
+import org.springframework.boot.web.servlet.server.ConfigurableServletWebServerFactory;
+import org.springframework.stereotype.Component;
+
+@Component
+public class CustomizationBean implements WebServletWebServerFactoryCustomizer<ConfigurableServletWebServerFactory>{
+	@Override
+	public void Customize(ConfigurableServletWebServerFactory server){
+		server.setPort(9000);
+	}
+}
+
+```
+
+类似的还有TomcatServletWebServerFactory,JettyWebServerFactory,UndertowWebServerFactory.
 
 
 
