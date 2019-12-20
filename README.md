@@ -2464,6 +2464,410 @@ public class CustomizationBean implements WebServletWebServerFactoryCustomizer<C
 类似的还有TomcatServletWebServerFactory,JettyWebServerFactory,UndertowWebServerFactory.
 
 
+#### 直接自定义ConfigurableServletWebServerFactory
+
+如果前面介绍的解决方案仍然无法满足你的需求。那干脆自己实现ConfigurableServletWebSearverFactory接口.下面是一个简单的例子:
+
+```
+
+	@Bean
+	public ConfigurableServletWebServerFactory webServerFactory(){
+		xxxServletWebServerFactory factory = new xxxServletWebServerFactory();
+		factory.setPort(8080);
+		factory.setSessionTimeout(10,TimeUnit.MINUTES);
+		factory.addErrorPages(new ErrorPage(HttpStatus.NOT_FOUND,"/notfound.html"));
+		return factory;
+	}
+```
+
+我们可以参考TomcatServletWebServerFactory,UndertowServletWebServerFactory,JettyServletWebServerFactory的实现方式，定义很多protected级别的set方法，他们就是我们操作这些factory的工具。
+
+
+### 对JSP的限制
+
+当我们使用内置servlet容器启动springboot应用时。下面是一些对JSP支持的限制:
+
+> 再jetty和tomcat中，可以支持JSP打成war包，或者可执行war包。或者直接把编译程序放到jetty和tomcat中运行。但是可运行jar包不支持JSP。
+
+> Undertow不支持jsp
+
+> error.jsp不会覆盖默认的错误处理视图。
+
+
+### 内置的响应式服务支持
+
+springboot提供了下面的响应式服务支持: reactor Netty,Tomcat,Jetty,Undertow,这几个响应式服务中间件也有他们对应的starter
+
+
+### 响应式服务资源配置
+
+当我们自动配置一个Reactor jetty或者jetty服务的时候。springboot会生成他们对应的资源工厂:ReactorResourceFactory,JettyResourceFactory.这些工厂的作用就是生成一些HTTP资源供这些服务器使用。
+
+reactor jetty和jetty客户端之间会选择性地共享某些http资源,但这是有条件的:
+
+> 客户端和服务之间必须使用的是同一种技术
+
+> 客户端的实例须由springboot的自动配置工具WebClient.Builder创建
+
+开发人员如果自定义了一个ReactorResourceFactory或者JettyResourceFactory的话。就可以用他们来覆盖Jetty和Netty自己的资源配置。而且是客户端和服务同时覆盖。
+
+详情请看[WebClient Runtime section](https://docs.spring.io/spring-boot/docs/2.2.2.RELEASE/reference/html/spring-boot-features.html#boot-features-webclient-runtime)
+
+
+
+## RSocket
+
+RSocket是用于字节流传输中的二进制协议，它允许对称交互模块之间在一条单连接上传输异步消息。
+
+spring-messageing模块提供了对RSocket的请求者和响应者的支持。详情请了解[RSocket section](https://docs.spring.io/spring/docs/5.2.2.RELEASE/spring-framework-reference/web-reactive.html#rsocket-spring)
+
+### RSocket自动配置策略
+
+springboot为RSocketStrategies提供了自动配置。RSocketStrategies为加密和解密RSocket载体所需的所有组件提供了支持。	如下:
+
+> 带有jackson的[CBOR](https://cbor.io/)编码
+
+> 带有jackson的json 编码
+s
+spring-boot-starter-rsocket提供了这两种编码的依赖。可以参考[Jackson support section](https://docs.spring.io/spring-boot/docs/2.2.2.RELEASE/reference/html/spring-boot-features.html#boot-features-json-jackson)章节了解更多知识。
+
+开发人员可以通过注册一个实现了RSocketStrategiesCustomizer接口的bean来自定义RSocketStrategries组件。
+
+请注意为了调整编码器的顺序，@Order注解很重要。
+
+### RSocket服务自动配置
+
+springboot也为RSocket服务提供了自动配置。相应的依赖也是在spring-boot-starter-rsocket中。
+
+springboot允许从Webflux服务的WebSocket中暴露RSocket。也可以建立一个独立的RSocket服务。
+
+对于Webflux应用来说。只有当下面的属性匹配了之后，RSocket服务才会嵌入Web服务中。
+
+```
+	spring.rsocket.server.mapping-path=/rsocket # 定义了一个匹配路径
+	spring.rsocket.server.transport=websocket #
+```
+
+> 我们只能在Reactor netty服务中嵌入Rsocket.其他的不行
+
+另外需要说明的是: RSocket TCP或者websocket server会作为一个独立的内置服务而启动。因此除非特殊要求，我们唯一需要配置的就是服务端口号:
+
+```
+	spring.rsocket.server.port=9898 #唯一强制要求配置的属性
+	spring.rsocket.server.transport=tcp #这里也可以设置其他协议
+```
+
+### spring 消息 RSocket支持
+
+springboot将会为spring message组件自动配置
+
+也就是说springboot会创建一个RSocketMessageHandler的bean来处理应用中的RSocket请求。
+
+
+### 请求带有RSocketRequester的RSocket服务
+
+一旦RSocket管道在客户端和服务端之间建立。任何一端都可以发送到或者接收另一端消息。
+
+作为一个服务器(指的是RSocket 服务),在任何一个属于RSocket的controller(带有@Controller注解)的处理方法(handler method)中,你都可以向它里面注入RSocketRequester实例。
+
+作为一个客户端,就需要事先主动和服务器建立一个RSocket连接。建立连接可以借助RSocketRequester.Builder的功能。而且Builder的相关属性由springboot自动配置
+
+
+## 安全(Security)
+
+如果你的类路径中有springSecurity.说明你的应用受springSecurity保护，springboot依赖于springSecurity的内容协商机制来决定是使用httpBasic呢还是formLogin.
+
+如果要给应用加入方法级别的安全措施，可以添加@EnableGlobalMethodSecurity,@EnableGlobalMethodSecurity需要带上你想要的设定。详情请看[Spring Security Reference Guide](https://docs.spring.io/spring-security/site/docs/5.2.1.RELEASE/reference/htmlsingle/#jc-method)
+
+默认的UserDetailsService有一个用户,用户名是"usear",密码是随机的，在应用启动的时候会打印在INFO级别的日志信息中:
+
+> Using generated security password； asdkfla-asdlkfalk-asdfls
+
+> 如果你调整了你的日志配置，请保证org.springframework.boot.autoconfigure.security策略被设置为INFO级别，否则密码打印不出来
+
+修改username和password: spring.security.user.name,spring.security.user.password
+
+下面是一些基本的特性:
+
+> 一个保存在内存中的UserDeatilsService(或者webflux的ReactiveUserDetailsService)实例
+
+> 基于表单或者基于HTTP的安全机制(这得看请求的accept是个什么类型)
+
+> 为发布授权事件而创建的DefaultAuthenticationPublisher(这玩意可以自定义)
+
+
+### MVC Security
+
+默认的安全配置主要是在SecurityAutoConfiguration和UserDetailsServiceConfiguration中.
+
+SecurityAutoConfiguration引入了SpringBootWebSecurityConfiguration来处理web安全问题，引入了UserDetailsServiceAutoConfiguration来处理认证问题。
+
+如果我们需要完全关闭默认的 web application security配置。或者是我们想组合多个spring安全组件（比如说组合OAuth2组件).我们就需要添加一个叫做WebSecurityConfigurerAdapter
+
+如果我们需要关闭UserDetailsService配置,我们需要添加一个我们自己实现了UserDetailsService和AuthenticationProvider(AuthenticationManager也可以)接口的bean。
+
+权限规则也是可以修改的，我们只需要自定义一个实现了WebSecurityConfigurerAdapter接口的实例就可以。
+
+对于监控端点(actuator endpoints)和静态资源(static Resources)来说,springboot提供了一些很简便的方法来修改他们的权限规则。EndPointRequest类被用来创建RequestMatcher对象。RequestMatcher对象主要依赖于management.endpoint.web.base-path属性。
+
+PathRequest类也被用来创建RequestMatcher对象。但是它创建的RequestMatcher对象主要是用来匹配常用的本地资源。
+
+
+### Webflux	Security
+
+与springmvc应用类似,添加安全机制的相关依赖就是:spring-boot-starter-security.
+
+默认的安全配置在ReactiveSecurityAutoConfiguration,UserDetailsServiceAutoConfiguration中.
+
+ReactiveSecurityAutoConfiguration引入了WebFluxSecurityConfiguration来处理Web安全问题，并引入UserDetailsServiceAutoConfiguration来处理认证问题。
+
+同样的，如果你想要完全关闭默认的security配置。	创建一个实现了WebFilterChainProxy接口的bean。如果想要关闭UserDetailsService配置添加一个自己的实现了ReactiveUserDetailsService接口或者是实现了ReactiveAuthenticationManager接口的bean。
+
+同样的，权限规则的修改需要创建一个SecurityWebFilterChain的bean。
+
+同样的对于监控端点(actuator endpoints)和静态资源.springboot也提供了一些简便的方法来修改他们的权限规则。也就是EndPointRequest和PathRequest
+
+下面的例子展示出怎么通过自定义配置来改变权限规则:
+
+```
+	@Bean SecurityWebFilterChain springSecurityFilterChain(serverHttpSecurity http){
+		return http
+			.authorizeExchange()
+			.matchers(PathRequest.toStaticResources().atCommonLocations())
+			.permitAll()
+			.pathMatchers("/foo","/bar")
+			.authenticated()
+			.and()
+			.formLogin()
+			.and()
+			.build();
+	}
+```
+
+
+### OAuth2
+
+OAuth2是受spring支持的一种广泛使用的认证框架，详情请看[OAuth2](https://oauth.net/2/)
+
+
+#### OAuth2客户端
+
+如果你的类路径(classpath)中有spring-security-oauth2-client.再加上自动配置的帮助，你就可以轻松地建立一个OAuth2/openID连接客户端。
+
+自动配置的参数来源于OAuth2ClientProperties类。这个类在servlet和响应式应用中都可以使用。
+
+你可以注册多个OAuth2客户端并且给他们添加前缀:如下所示:
+
+```
+	spring.security.oauth2.client.registration.my-client-1.client-id=abcd
+	spring.security.oauth2.client.registration.my-client-1.client-secret=password
+	spring.security.oauth2.client.registration.my-client-1.client-name=Client for user scope
+	spring.security.oauth2.client.registration.my-client-1.provider=我的某一个provider
+	spring.security.oauth2.client.registration.my-client-1.scope=usear
+	spring.security.oauth2.client.registration.my-client-1.redirect-uri=我的重定向地址
+	spring.security.oauth2.client.registration.my-client-1.client-authentication-method=basic
+	spring.security.oauth2.client.registration.my-client-1.authorization-grant-type=授权级别码
+	//第二个客户端
+	spring.security.oauth2.client.registration.my-client-1.client-id=abcd
+	spring.security.oauth2.client.registration.my-client-1.client-secret=password
+	spring.security.oauth2.client.registration.my-client-1.client-name=Client for user scope
+	spring.security.oauth2.client.registration.my-client-1.provider=我的某一个provider
+	spring.security.oauth2.client.registration.my-client-1.scope=usear
+	spring.security.oauth2.client.registration.my-client-1.redirect-uri=我的重定向地址
+	spring.security.oauth2.client.registration.my-client-1.client-authentication-method=basic
+	spring.security.oauth2.client.registration.my-client-1.authorization-grant-type=授权级别码
+	//第三个客户端
+	....
+```
+
+这块由于没学习过，因此暂不翻译
+
+
+
+## springboot搭配sql 数据库
+
+spring框架为sql 数据库提供了大量的支持。从直接的jdbc支持(比如JdbcTemplate),到完整的ORM框架支持(比如hibernate),详情请看[spring data](https://spring.io/projects/spring-data)
+
+
+### 配置一个数据源
+
+java的"javax.sql.DataSource"接口提供了一个标准的数据库连接方法。一般地，Datasource依赖一个有一定规范的URL来获取数据库的连接.关于例子可以参考这:[how to](https://docs.spring.io/spring-boot/docs/2.2.2.RELEASE/reference/html/howto.html#howto-configure-a-datasource)
+
+
+#### 内置数据源支持
+
+如果使用内存数据库的话开发起来会非常方便。基本上内存数据库不提供持久化，因此数据只存在于应用运行期间.例子可以参考这:[how to initializ a database](https://docs.spring.io/spring-boot/docs/2.2.2.RELEASE/reference/html/howto.html#howto-database-initialization)
+
+springboot可以自动配置内置的H2,HSQL,Derby数据库。而不必提供任何URL。只需要引入他们对应的依赖就可以。
+
+>	如果你在测试中使用这些特性。你可能会发现你的多个应用使用的是同一个数据库。因此如果你还是想一个应用一个数据库的话，你应该设置spring.datasource.generate-unique-name=true
+
+举例：下面是一个标准的依赖:
+
+```
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-data-jpa</artifactId>
+	</dependency>
+	<dependency>
+		<groupId>org.hsqldb</groupId>
+		<artifactId>hsqldb</artifactId>
+		<scope>runtime</scope>
+	</dependency>
+```
+
+> 上面的例子中因为内置数据库需要spring.jdbc中的某些依赖才能自动配置，后来我们把这些依赖放到了spring-boot-starter-data-jpa中
+
+> 如果出于什么原因，你确实给内置数据库配置了URL，请确保数据库的自动关闭为禁用，H2:DB_CLOSE_ON_EXIT=FALSE,HSQL:确保没有shutdown=true。确保他们被禁用是为了让springboot来控制他们的关闭。
+
+
+
+#### 连接到产品数据库
+
+产品数据库也可以通过数据连接池来自动配置。springboot使用下面的算法来下选择哪一个实例被使用:
+
+> 如果有HikariCP连接池的话，我们优先使用HikariCP
+
+> 然后是tomcat连接池
+
+> 然后是Commons DBCP2连接池
+
+如果你使用spring-boot-starter-jdbc 或者 spring-boot-starter-data-jpa，你就可以自动获取HikariCP的自动配置
+
+> 如果你想修改我们的算法的话，就设置spring.datasource.type。
+
+> 连接池随时都可以手动设置。如果你引入了你自己的DataSource，那么就不会出现自动配置啦
+
+手动配置数据源可以通过spring.datasource.*;示例如下:
+
+```
+	spring.datasource.url=jdbc:mysql://localhost/test
+	spring.datasource.username=dbuser
+	spring.datasource.password=dbpass
+	spring.datasource.driver-class-name=com.mysql.jdbc.Driver
+```
+
+手动配置数据源的时候至少要指定spring.datasource.url的值。否则的话springboot就认为是自动配置
+
+> 其实spring.datasource.driver-class-name不用配置，因为现在大多数的数据库springboot可以通过url自动识别
+
+>当springboot准备创建数据源的时候，我们需要验证driver是否可用。因此加载驱动类是第一步工作，因此如果你设置了driver-class-name的话，需要确保它可被加载进虚拟机。
+
+
+对于更多关于数据源的参数可以参考DataSourceProperties类。这个类甚至加了连接池的前缀:spring.datasource.hikari.*,spring.datasource.tomcat.*,...
+
+下面是这个类的一些参数:
+
+```
+	spring.datasource.tomcat.max-wait=10000
+	spring.datasource.tomcat.max-active=50
+	spring.datasource.tomcat.test-on-borrow=true
+```
+
+#### 连接到JNDI数据源
+
+也许你的数据源需要从应用服务中获取。那么:spring.datasource.jndi-name就可以代替spring.datasource.url和spring.datasource.username和spring.datasource.password属性了。举例如下:
+
+```
+spring.datasource.jndi-name=java:jboss/datasource/customers
+```
+
+### 使用JdbcTemplate
+
+spring的JdbcTemplate和NamedParameterJdbcTemplate类都是可以自动配置的。你可以直接@Autowired他们。
+
+```
+	import org.springframework.beans.factory.annotation.Autowired;
+	import org.springframework.jdbc.core.JdbcTemplate;
+	import org.springframework.stereotype.Component;
+	
+	@Component
+	public class MyBean{
+	
+		private final JdbcTemplate jdbcTemplate;
+		
+		@Autowired
+		public MyBean(JdbcTemplate jdbcTemplate){
+			this.jdbcTemplate = jdbcTemplate;
+		}
+	}
+}
+```
+
+
+使用spring.jdbc.template.*来自定义他们中的某些属性。
+
+
+### JPA和springdata JPA
+
+java 持久化 API是一种标准的对象关系映射技术，我们只需要引入spring-boot-starter-jpa依赖就可以开始了,它对下面的关键技术提供了支持:hibernate,spring data jpa,spring orms
+
+这里就不深入JPA和 data JPA了。有需要可以查资料
+
+#### 实体类
+
+一般情况下，JPA实体类被配置成了persistence.xml文件中。但是有了springboot之后就没有必要了，而是使用实体扫描Entity Scanning.因为一般主入口类层级以下的包都会被扫描(因为入口类一般都有@EnableAutoConfiguration或者干脆是@SpringBootApplication。
+
+并且带有@Entity,@Embeddable,@MappedSuperclass都会被扫描:
+
+```
+	import java.io.Serializable;
+	import javax.persistence.*;
+	
+	@Entity
+	public class City implements Serializable{
+	
+		@Id
+		@GeneratedValue
+		private Long id;
+		
+		@Column(nullable = false)
+		private String name;
+		
+		@Column(nullable = false)
+		private String state;
+		
+		protected City(){}
+		
+		public City(String name,String state){
+			this.name = name;
+			this.state = state;
+		}
+		
+		public String getName(){
+			return this.name
+		}
+		
+		public String getState(){
+			return this.state;
+		}
+	}
+```
+
+
+#### springdata JPA库
+
+[spring data JPA](https://spring.io/projects/spring-data-jpa)库是一系列接口，这些接口定义了获取数据的方式。JPA查询会从你的方法名中自动创建。比如说:你创建了一个CityReposity接口。定义了一个findAllByState(String state)方法。主要用来查询某一个州的所有城市信息.请注意方法名 find All By State。有了这些关键字就可以自动创建查询语句。
+
+当然，还有更为简便的方式，就是使用@Query注解
+
+spring data的库基本上都是从Repository和CrudRepository接口中扩展出来的。举例如下:
+
+```
+	import org.springframework.data.domain.*;
+	import org.springframework.data.repository.*;
+	
+	public interface CityRepository extends Repository<City,Long>{
+		Page<City> findAll(Pageable pagealbe);
+		City findByNameAndStateAllIgnoringCase(String name,String state);
+	}
+```
+
+Spring Data JPA 支持三种启动模式: default,deferred,lazy。设置deferred和lazy启动:spring.data.jpa.repositories.bootstrap-mode=lazy.
+
+当使用lazy模式的时候。自动配置:EntityManagerFactoryBuilder就会使用上下文中的AsyncTaskExecutor接口的实例。但是如果上下文有多个Executor的实例。就会使用applicationTaskExecutor。
+
+
 
 
 
