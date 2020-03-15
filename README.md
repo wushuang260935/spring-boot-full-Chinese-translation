@@ -2868,18 +2868,605 @@ Spring Data JPA 支持三种启动模式: default,deferred,lazy。设置deferred
 当使用lazy模式的时候。自动配置:EntityManagerFactoryBuilder就会使用上下文中的AsyncTaskExecutor接口的实例。但是如果上下文有多个Executor的实例。就会使用applicationTaskExecutor。
 
 
+#### 创建或者弃用JPA数据库
+
+一般情况下，如果你使用了内置数据库时，JPA数据库就会自动创建。你可以通过spring.jpa.*配置JPA的属性。比如，允许创建或者删除表，你可以这样设置:
+
+> spring.jpa.hibernate.ddl-auto = create-drop
 
 
+#### 视图中打开实体管理器(EntityManager)
+
+在一个启动中的web应用中。spring 默认地会为“视图中打开尸体管理器”模式注册一个拦截器:OpenEntityManagerInViewInterceptor.这么做的好处就是可以在web视图中允许懒加载。当然，如果你不想要这种特性。可以设置:spring.jpa.open-in-view=false.
 
 
+### springdata JDBC
+
+springdata 包含支持JDBC的库。因此会给CrudRepository类中的方法自动生成SQL语句。但是如果需要复杂的SQL语句。那可能就需要@Query注解。
+
+当我们的类路径(classpath)中有相关的依赖时。springboot就会自动配置springdata的JDBC。这个自动配置就在:spring-boot-starter-data-jpa中。如有必要，添加@EnableJdbcRepositories注解,或者添加一个JdbcConfiguration类的子类到你的应用中，这样能控制springdata JDBC的配置属性(包括自动加载的属性)。
 
 
+### 使用H2网络服务
+
+H2数据库为我们提供了一个基于浏览器的控制台。而且springboot可以自动配置这个控制台,条件是:
+
+> 你开发的是一个基于servlet的应用。
+
+> 类路径(classpath)中含有包com.h2database:h2
+
+> 必须用springboot的开发者工具-[developer tools](https://docs.spring.io/spring-boot/docs/2.2.2.RELEASE/reference/html/using-spring-boot.html#using-boot-devtools)
+
+```
+如果你没有使用springboot开发工具。缺仍然想使用H2的控制台。就设置:spring.h2.console.enabled=true,需要注意的是，H2控制台主要是用于在开发期间使用，所以生产模式请设置为false。
+```
 
 
+#### 修改H2控制台路径
+
+默认的路径是:/h2-console,通过spring.h2.console.path修改
 
 
+### 使用JOOQ（java Object Oriented Query?)
+
+面向对象查询.JOOQ是一种从[data geekery](https://www.datageekery.com/)流行起来的面向对象查询技术。Data Geekery会根据你的数据库生成java代码。并且允许你通过他的API构建"类型安全”的SQL查询语句。springboot对JOOQ的商用和开源版本都支持。
 
 
+#### 代码生成
 
+为了使用JOOQ的类型安全查询。我们需要从数据库中生成java类。我们可以参考JOOQ使用手册[JOOQ user manual](https://www.jooq.org/doc/3.12.3/manual-single-page/#jooq-in-7-steps-step3),如果你使用jooq-codegen-maven和spring-boot-starter-parent.你就可以省略你在pom中的<version>标签。
+
+当然，你也可以使用springboot定义的标签变量:比如:定义一个${h2.version}.来声明你究竟勇的是哪一个版本，下面是例子:
+
+```
+<plugin>
+	<groupId>org.jooq</groupId>
+	<artifactId>jooq-codegen-maven</artificatId>
+	<executions>
+		...
+	</executions>
+	<dependencies>
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<version>${h2.version}</version>
+		</dependency>
+	</dependencies>
+	<configuration>
+		<jdbc>
+			<driver>org.h2.Driver</driver>
+			<url>jdbc:h2~/yourdatabase</url>
+		</jdbc>
+		<generator>
+			...
+		</generator>
+	</configuration>
+</plugin>
+```
+
+
+#### JOOQ sql 方言
+
+除非是spring.jooq.sql-dialect属性被配置好了。否则就由springboot决定你用的是什么方言。如果springboot没有检测到某一个方言。就会使用默认的。
+
+> springboot只在JOOQ开源版本中支持自动配置方言
+
+
+#### 自定义JOOQ
+
+
+更多高阶的自定义属性需要你使用@Bean的方式来实现。但是这种方式必须要等到JOOQ配置(Configuration)类创建了之后才行。你可以定义下面的JOOQ类型:
+
+> ConnectionProvider
+
+> ExecutorProvider
+
+> TransactionProvider
+
+> RecordMapperProvider
+
+> RecordUnMapperProvider
+
+> Settings
+
+> RecordListenerProvider
+
+> ExecuteListenerProvider
+
+> VisitListenerProvider
+
+> TransactionListenerProvider
+
+
+其实我们也可以创建自己的JOOQ配置类(org.jooq.Configuration)。也是以@Bean的形式。
+
+
+## 使用nosql技术
+
+springdata支持下面的nosql技术。
+
+> MongoDB
+
+> Neo4J
+
+> Elasticasearch
+
+> Solr
+
+> Redis
+
+> GemFire or Geode
+
+> Cassandra
+
+> Couchbase
+
+> LDAP
+
+springboot也提供了对他们的自动配置。具体请参考[spring-data](https://spring.io/projects/spring-data)
+
+
+### redis
+
+redis是一种缓存消息协议。拥有丰富的键值存储方式。springboot为Lettuce和Jedis提供了基本的自动配置。
+
+springboot还在lettuce和Jedis的基础上进行了抽象。形成了[Spring Data Redis](https://github.com/spring-projects/spring-data-redis)
+
+有一种spring-boot-starter-data-redis启动器可以帮助我们简化上述步骤。这个启动器默认使用的是lettuce.
+
+> 对于响应式应用的支持，我们也有spring-boot-starter-data-redis-reactive
+
+
+#### 连接到Redis
+
+我们可以向应用中注入实现了RedisConnectionFactory,StringRedisTemplate接口的类或者直接使用RedisTemplate类。默认地，实例会尝试连接localhost:6379，下面是例子:
+
+```
+@Component
+public class MyBean{
+	private StringRedisTemplate template;
+	
+	@Autowired
+	public MyBean(StringRedisTemplate template){
+		this.template = template;
+	}
+	
+	//...
+}
+```
+
+> 你可以注册多个实现了LettuceClientConfigurationBuildereCustomer接口的bean来实现对redis的自定义。如果是Jedis。那么就会用JedisClientConfigurationBuilderCustomizer.
+
+如果你添加了某一种“自动配置”类型的@Bean.它就会替换原来的自动配置类。(但是RedisTemplate除外，原因请自己查找资料).
+
+默认上,如果commons-pool2在类路径中。你就会获取一个连接池工厂。
+
+
+### MongoDB
+
+MOngoDB是一个开源NOSQL文本数据库。使用的是类似于JSON格式的存储方式而不是传统的基于表的关系型数据。springboot对MongoDB提供了很多支持。包括:spring-boot-starter-data-mongodb和spring-boot-starter-data-mongodb-reactive.
+
+
+#### 连接MongoDB数据库
+
+为了获取Mongodb数据库。你可以注入自动配置org.springframework.data.mongodb.MongodbFactory.默认连接的数据库是:mongodb://localhost/test.下面是一个连接mongodb的例子:
+
+```
+import org.springgramework.data.mongodb.MongoDbFactory;
+import com.mongodb.DB;
+
+@Component
+public class MyBean{
+	private final MongoDbFactory mongo;
+	
+	@Autowired
+	public MyBean(MongoDbFactory factory){
+		this.mongo = factory
+	}
+	
+	...
+	
+	public void example(){
+		DB db = mongo.getDb();
+		//...
+	}
+}
+```
+
+你可以设置spring.data.mongodb.uri属性来修改URL。也可以勇它来配置额外的属性。
+
+> spring.data.mongodb.uri=mongodb://user:secret@mongo1.example.com:12345,mongo2.example.com:23456/test
+
+另外，只要你使用的是mongo2.你就可以单独制定端口和主机:
+
+```
+	spring.data.mongodb.host = mongoserver
+	spring.data.mongodb.port = 27017
+```
+
+如果你已经定义了你自己的MongoClient.它就会被自动装配一个匹配的MongoDbFactory.com.mongodb.client和com.mongodb.client.MongoClient都支持。
+
+> 如果你使用的是mongodb3.0驱动，就不再支持spring.data.mongodb.host和spring.data.mongodb.port两个属性。而是使用spring.data.mongodb.uri替代。
+
+> 虽然spring.data.mongodb.port不使用了。但是默认还是27017端口。
+
+> 如果你没有使用spring data mongo,可以使用com.mongodb.MongoClient替代MongoDbFactory.
+
+> 如果你使用的是响应式驱动。那么SSL就需要使用Netty.当Netty的依赖齐全时，就会自动装配它的工厂(当然前提时工厂不是自定义的)。
+
+
+#### MongoTemplate
+
+Spring Data MongoDB提供了一个MongoTemplate类。它非常类似于spring的jdbcTemplate。所以springboot也对他提供了很好的支持:
+
+```
+@Component
+public class MyBean{
+	private final MongoTemplate mongoTemplate;
+	
+	@Autowired
+	public MyBean(MongoTemplate mongoTemplate){
+		this.mongoTemplate = mongoTemplate;
+	}
+}
+```
+
+具体可以参考 [MongoOpeartions](https://docs.spring.io/spring-data/mongodb/docs/2.2.3.RELEASE/api/org/springframework/data/mongodb/core/MongoOperations.html)
+
+
+#### springdata mongodb库
+
+springdata包含了很多mongodb的支持库。就像JPA一样，他们的特点就是：基于方法名称自动创建查询语句。
+
+其实上，springdata对JPA和mongodb的支持都是出自同一个基础库。
+
+在之前JPA中讨论的例子为例：假设City是一个Mongo数据类。而不是@Entity。那么他的工作方式就是和下面的例子一样的:
+
+```
+package com.example.myapp.domain;
+
+import org.springframework.data.domain.*;
+import org.springframework.data.repository.*;
+
+public interface CityRepository extends Repository<City,Long>{
+	Page<City> findAll(Pageable pageable);
+	
+	City findByNameAndStateAllIgnoringCase(String name,String state);
+}
+
+```
+
+> 使用@EntityScan注解来自定义文档扫描路径
+
+> 对于spring data MongoDb的更多对象映射技术。请参考[参考文档](https://spring.io/projects/spring-data-mongodb)
+
+
+#### 内置mongo
+
+springboot提供对内置mongo的自动装配。要使用内置mongo的话，需要提供依赖：de.flapdoodle.embed:de.flapdoodle.embed.mongo
+
+通过spring.data.mongodb.port就可以配置mongo监听的端口。如果设置spring.data.mongodb.port=0。那么就会随机分配一个可用的端口。
+
+> 如果你没有指定某一个端口号。那么内置支持也会随机分配一个(不一定是27017)
+
+如果你的类路径中有SLF4J。那么mongo产生的日志会自动路由到一个日志器中(org.springframework.boot.autoconfigure.mongo.embedded.EmbeddedMongo)
+
+如果想控制mongo实例的配置属性和日志属性。可以声明一个IMongoConfig和IRuntimeConfig的bean。
+
+另外，下载配置需要声明DownloadConfigBuilderCustomizerbean。
+
+
+###  Neo4j
+
+Neo4j是一哥开源的NOSQL图形数据库。这种数据库使用了很多种节点数据模型。相比于传统的RDBMS，这种模型更适合存储大型数据。springboot为neo4j提供了多种便利，包括:spring-boot-data-neo4j启动器。
+
+
+#### 连接neo4j数据库
+
+想要注入neo4j服务，我们需要自动装配org.neo4j.ogm.session.Session。默认session实例会使用bolt协议访问地址localhost:7687来获取一个neo4j的连接。下面就是一个例子:
+
+```
+@Component
+public class MyBean{
+	private final Session session;
+	
+	@Autowired
+	public MyBean(Session session){
+		this session = session;
+	}
+}
+```
+
+通过spring.data.neo4j.*来设置urih和认证参数:
+
+```
+spring.data.neo4j.uri=bolt://my-server:7687
+spring.data.neo4j.username=neo4j
+spring.data.neo4j.password=secret
+```
+
+同样的，自定义掌控的话，可以创建org.neo4j.ogm.config.Configuration的bean或者org.neo4j.ogm.session.sessionFactory
+
+
+#### 使用内置模式
+
+如果你在应用中添加了org.neo4j:neo4j-ogm-embedded-driver依赖。springboot会自动配置一个neo4j的内置实例。只是这个实例在应用关闭的时候不会持久化数据到数据库种。
+
+> 由于Neo4j OGM 驱动器并不提供它自己的Neo4j核心。因此你需要声明org.neo4j:neo4j为你的依赖。请参考[Neo4j OGM documentation](https://neo4j.com/docs/ogm-manual/current/reference/#reference:getting-started)
+
+
+如果类路径种同时有前面叙述的2种驱动起，那么会使用第一种。其实禁用内置neo4j还有另一种方法:spring.data.neo4j.embedded.ena led=false.
+
+使用:[Date Neo4j Tests](https://docs.spring.io/spring-boot/docs/2.2.2.RELEASE/reference/html/spring-boot-features.html#boot-features-testing-spring-boot-applications-testing-autoconfigured-neo4j-test)的时候，如果类路径中既有内置neo4j驱动起也有neo4j核心依赖。那么 Date Neo4j Tests会自动实例化neo4j实例。
+
+> 要开启内置neo4j的持久化功能。需要你给database提供一个数据库路径。举例:spring.data.neo4j.uri=file://var/tmp/graph.db
+
+
+#### 使用本地类型（猜测是不同语言的数据类型吧)
+
+Neo4j-OGM能够集成所有的类型。比如:java.time。*,也可以是基于字符串的形式，或者是本地类型的数据。为了向后兼容的需要，NEO4J-OGM默认使用了基于字符串的形式来集成数据。如果你要使用本地类型。那就需要添加依赖:org.neo4j:neo4j-ogm-bolt-native-types或者添加org.neo4j:neo4j-ogm-embedded-native-types。最后还需要设置属性:spring.data.neo4j.use-native-types=true
+
+
+#### neo4jSession
+
+默认第，在web应用中。Neo4jSession会被绑定到整个请求的线程上。如果你想去掉这种绑定:spring.data.neo4j.open-in-view=false
+
+
+#### springdata neo4j 库
+
+springdata 提供了很多支持neo4j的库
+
+springdata neo4j也像其他数据库一样为springdata JPA提供基础操作方法。还是以City为例:
+
+```
+ package com.example.myapp.domain;
+ 
+ import java.util.Optional;
+ 
+ import org.springframework.data.neo4j.repository.*;
+ 
+ public interface CityRepository extends Neo4jRepository<City,Long>{
+ 	Optional<City> findOneByNameAndState(String name,String state);
+ }
+```
+
+neo4j启动器也提供了对事物的支持。更多对neo4j的说明请:[参考资料](https://docs.spring.io/spring-data/neo4j/docs/5.2.3.RELEASE/reference/html/)
+
+### Solr
+
+[apache solr](https://lucene.apache.org/solr/)是一个搜索引擎,springboot为solr5客户端应用库提供了最基础的自动配置。springboot还为[spring data solr]提供了顶层的抽象类。所有这些都可以通过添加spring-boot-starter-data-solr。很轻松地得到。
+
+#### 连接到solr
+
+你可以向Solr客户端:solrClient实例注入自动配置。solr客户端默认会连接localhost:8983/solr.下面的列子展示了如何注入Solr bean:
+
+```
+@Component
+public class MyBean{
+	private SolrClient solr;
+	
+	@Auwotired
+	public myBean(SolrClient solrClient){
+		this.solr = solrClient;
+	}
+	//...
+}
+```
+
+#### spring data solr 依赖
+
+spring data中包含了对apache solr依赖的支持。与前面描述的JPA依赖一样，基本原则就是:基于方法名称来为你构建查询方法。
+实际上，spring data jpa和spring data solr共享同一个基础库。我们可以借鉴前面的例子: 假设我们把City看成是一个@SolrDocument而不是一个JPA实例。这样他们工作方式就是一幕一样的
+
+详细的细节可以参考“参考文献”:[reference documention](https://docs.spring.io/spring-data/solr/docs/4.1.3.RELEASE/reference/html/)
+
+
+### elasticsearch
+
+Elasticsearch是一种开源，可分发，RESTful的搜索分析引擎。当然springboot为他们提供了自动配置，且支持下面的版本:
+
+>  官方java低版本至高版本的REST客户端。
+> spring data ELasticSearch提供的响应式搜索客户端:reactiveElasticSearchClient
+
+传输(transport)客户端虽然仍然可用，但是支持它的部分已经在springdata ElasticSearch和ElasticSearch中被弃用了。后续版本中很可能被启用。springboot提供了一个专门的starter。spring-boot-starter-data-elasticsearch.
+
+在ElasticSearch和springdataElasticSearch提供了官方RESTful支持之后，Jest客户端也被弃用了
+
+#### 使用REST客户端连接ElasticSearch
+
+ElasticSearch上了两个不同的REST客户端。一个是低java版本客户端。一个是高java版本客户端。
+
+如果你在classpath上有org.elasticsearch.client:elasticsearch-rest-client.那么springboot会自动配置它。并且注册一个指向localhost:9200的RestClient实例。我们还可以配置更多的RestClient属性：
+
+> spring.elasticsearch.rest.uris=https://search.examples.com:9200
+> spring.elasticsearch.rest.read-timeout=10s
+> spring.elasticsearch.rest.username=user
+> spring.elasticsearch.rest.password=secret
+
+更近一步，如果是为了自定义更多属性。我们可以实现RestClientBuilderCustomizer接口实例。并且我们可以注册任意数量的这个实例。
+
+当然，完全地控制客户端的话，可以自定义RestClient。
+
+
+#### 通过响应式Rest client连接到ElasticSearch
+
+在响应式服务器中。springdata ElasticSearch为ElasticSearch查询实例提供了ReactiveElasticSearchClient.它构筑于WebFlux客户端:WebClient之上。所以spring-boot-starter-elasticsearch和spring-boot-starter-webflux依赖都支持ReactiveElasticSearchClient。
+
+默认:springboot会注册一个ReactiveElastiSearchClient的实例并指向localhost:9200.我们还可以配置更多的参数:
+
+```
+spring.data.elasticsearch.client.reactive.endpoint = search.example.cn:9200
+spring.data.elasticsearch.client.reactive.use-ssl = true
+spring.data.elasticsearch.client.reactive.socket-time = 10s
+spring.data.elasticsearch.client.reactive.username = user
+spring.data.elasticsearch.client.reactive.password = secret
+```
+
+如果这些配置属性还不够用。还想获得更多属性的控制权。就可以注册一个实现了ClientConfiguration接口的实例。
+
+#### 使用Jest来连接ElasticSearch
+
+> 现在。springboot支持官方的RestHighLevelClient.Jest被弃用了。
+
+但是如果你的类路径中有Jest.我们可以注册一个指向localhost:9200的自动配置客户端:JestClient.更多的配置可以设置这些:
+
+```
+spring.elasticsearch.jest.uris = https://search.example.com:9200
+spring.elasticsearch.jest.read-timeout = 10000
+spring.elasticsearch.jest.username = user
+spring.elasticsearch.jest.password = secret
+```
+
+和前面的一样。要想设置更多的配置的参数的话，实现HttpClientConfigBuilderCustomizer接口。而且我们可以注册任意个这些实例。下面就是一个例子:
+
+```
+static class HttpSettingsCustomizer implements HttpClientConfigCustomizer{
+	@Override
+	public void customize(HttpClientConfig.Builder builder){
+		builder.maxTotalConnection(100).defaultMaxTotalConnectionPerRoute(5);
+	}
+}
+```
+
+当然，我们还有最后一招：自定义一个JestClient。
+
+#### 使用spring data连接elasticsearch
+
+为了连接到elasticsearch。那么就需要RestHightLevelClient.所以springboot提供了手动和自动配置的方式为RestHightLevelClient提供方便。
+
+下面的例子是注册一个ElasticsearchRestTemplate。
+
+```
+@Component
+public class MyBean{
+	private final ElasticSearchRestTemplate template;
+	
+	public MyBean(ElasticsearchRestTemplate template){
+		this.template = template;
+	}
+}
+```
+
+在spring-data-elasticsearch和相馆依赖面前。springboot可以自动配置ReactiveElasticSearchClient和ReactiveElasticsearchTemplate。他们于其他响应式REST客户端具有相同的功能。
+
+#### spring data Elasticsearch依赖
+
+spring data includes包含了可以支持elasticsearch的依赖。就与前面讨论的JPA依赖一样。基本原则就是基于方法名称来自动构建查询方法。我们也可以参考:[reference document](https://docs.spring.io/spring-data/elasticsearch/docs/current/reference/html/).
+
+springboot同时支持经典和响应式elastisearch依赖。基于应用中的依赖不同。springboot会自动配置ElasticSearchRestTemplate或者ReactiveElasticSearchTemplate.
+
+当然我们也可以自定义template.那就需要在应用中添加我们自己的ElasticsearchRestTemplate或者ElasticsearchOperations.(当然也少不了:ReactiveElasticSearchTemplate,ReactiveElasticsearchOperations)
+
+下面的属性可以取消依赖对elasticsearch的支持:
+
+> spring.data.elasticsearch.repositories.enabled = false
+
+###  Cassandra
+
+cassandra是一个开源，分布式数据库管理系统。主要用于处理那些涉及多个应用的数据。springboot基于spring data cassandra来提供自动配置和抽象类。spring-boot-starter-data-cassandra是他们的启动器。
+
+#### 连接到cassandra
+
+你可以注入CassandraTemplate或者是Cassandra的Session实例到你的类中。更多属性在:spring.data.cassandra.*中。
+
+> spring.data.cassandra.keyspacee-name = mykeyspace
+> spring.data.cassandra.contact-points = cassandrahost1,cassandrahost2
+
+你也可以随意注册多个实现了ClusterBuilderCustomizer接口的实例。以便更好地自定义。下面提供一个简单的实例:
+
+```
+@Component
+public class MyBean{
+	private CassandraTemplate template;
+	
+	@Autowired
+	public MyBean(CassandraTemplate template){
+		this.template = template;
+	}
+}
+```
+
+如果你想替换默认的CassandraTemplate.你就注册一个自定义的template。
+
+####  springdata cassandra依赖
+
+springdata中包含了支持cassandra的基础依赖。现在。相比于之前讨论的JPA依赖。springboot对cassandra的支持还很有限。参考文献[reference document](https://docs.spring.io/spring-data/cassandra/docs/)
+
+### couchbase
+
+couchbase是一种开源，分布式，多模型的无SQL语句的面向文档的数据库。因此couchbase专门用于交互式应用。spring-boot-starter-data-couchbase和spring-boot-starter-data-couchbase-reactive是他们的启动器。
+
+#### 连接到couchbase
+
+添加了Couchbase SDK以及他们的一些配置过后，我们就可以得到一个Bucket和Cluster实例。spring.couchbase.*是对他们的配置。下面的例子中设置了bootstrap host.bucketname,password:
+
+```
+spring.couchbase.bootstrap-hosts = my-host-1,192.168.1.123
+spring.couchbase.bucket.name=my-bucket
+spring.couchbase.bucket.password=secret
+```
+
+> 请注意：你需要至少需要提供 bootstrap host.其他的属性可以为空，或者默认值
+> 完整的自定义配置的话，可以注册一个org.springframework.data.couchbase.config.couchbaseconfigurer实例。
+
+而对于couchbase的运行环境配置。就需要CouchbaseEnvironment.下面的配置可以供参考:
+
+```
+spring.couchbase.env.timeout.connect = 3000
+spring.couchbase.env.ssl.key-store=/location/of/keystore.jks
+spring.couchbase.env.ssl.key-store-password=secret
+```
+
+#### springdata couchbase依赖
+
+springdata包含对couchbase依赖的支持。详情可以参考[reference document](https://docs.spring.io/spring-data/couchbase/docs/current/reference/html/).
+
+和前面的一样，这里就不一一阐述了。利用couchbaseTemplate实例。来操作couchbase。下面就是例子:
+
+```
+@Component
+public class MyBean{
+	private final CouchbaseTemplate template;
+	
+	@Autowired
+	public MyBean(CouchbaseTemplate template){
+		this.template = template;
+	}
+	//...
+}
+```
+
+如有必要,我们可以使用下面的实例来替换我们默认的自动配置：
+
+>couchbasetemplate,IndexManager,CustomConversions.
+
+为了避免出现硬编译现象。我们需要借助springdata couchbase 的BeanNames.例子如下:
+
+```
+@Configuration(proxyBeanMethods = false)
+public class SomeConfiguration{
+	@Bean(BeanNames.COUCHBASE_CUSTOM_CONVERSIONS)
+	public CustomConversions myCustomConversions(){
+		return new CustomConversions(...);
+	}
+	//...
+}
+```
+
+### LDAP
+
+LDAP(轻量级目录访问协议)是一个开源的，中立的，企业级应用协议。这样可以通过一个IP网络获得一种服务。什么服务呢:这个服务就是可以访问到并且保持住分布式目录信息。
+
+springboot对LDAP服务器提供了支持。
+
+#### 连接到LDAP服务器
+
+#### springdata LDAP仓库
+
+#### 内置LDAP服务器
+
+### influxDB
+
+influxDB是一种开源的时间集合数据库。专门用于快速，高可靠性存储。
 
 
